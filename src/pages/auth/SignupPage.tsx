@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, EyeOff, Check } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,23 +15,10 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [inviteCode, setInviteCode] = useState("");
-  const [codeFromUrl, setCodeFromUrl] = useState(false);
-  const [codeError, setCodeError] = useState("");
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-
-  useEffect(() => {
-    const code = searchParams.get("code");
-    if (code) {
-      setInviteCode(code.toUpperCase().trim());
-      setCodeFromUrl(true);
-    }
-  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setCodeError("");
 
     if (password !== confirmPassword) {
       toast.error("Passwords don't match");
@@ -42,32 +29,7 @@ export default function SignupPage() {
       return;
     }
 
-    const trimmedCode = inviteCode.toUpperCase().trim();
-    if (!trimmedCode) {
-      setCodeError("Invite code is required.");
-      return;
-    }
-
     setLoading(true);
-
-    // Validate invite code
-    const { data: waitlistEntry, error: lookupError } = await (supabase
-      .from("waitlist")
-      .select("id, redeemed, code_sent") as any)
-      .eq("invite_code", trimmedCode)
-      .maybeSingle();
-
-    if (lookupError || !waitlistEntry) {
-      setCodeError("Invalid invite code. Double-check your email for the correct code.");
-      setLoading(false);
-      return;
-    }
-
-    if ((waitlistEntry as any).redeemed) {
-      setCodeError("This invite code has already been used.");
-      setLoading(false);
-      return;
-    }
 
     // Proceed with signup
     const { error } = await supabase.auth.signUp({
@@ -84,12 +46,6 @@ export default function SignupPage() {
       toast.error(error.message);
       return;
     }
-
-    // Mark code as redeemed
-    await (supabase
-      .from("waitlist") as any)
-      .update({ redeemed: true, redeemed_at: new Date().toISOString() })
-      .eq("invite_code", trimmedCode);
 
     setLoading(false);
     navigate("/auth/verify", { state: { email } });
@@ -108,27 +64,6 @@ export default function SignupPage() {
           <p className="text-sm mb-6" style={{ color: 'rgba(242,237,228,0.4)' }}>Start making beat-synced videos</p>
 
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="invite-code" className="text-label" style={{ color: 'rgba(242,237,228,0.4)' }}>INVITE CODE</Label>
-              <div className="relative">
-                <Input
-                  id="invite-code"
-                  placeholder="RTV-XXXXX"
-                  value={inviteCode}
-                  onChange={(e) => { setInviteCode(e.target.value.toUpperCase()); setCodeError(""); }}
-                  readOnly={codeFromUrl}
-                  required
-                  className={codeFromUrl ? "pr-24" : ""}
-                />
-                {codeFromUrl && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs font-medium" style={{ color: '#E8FF47' }}>
-                    <Check className="w-3.5 h-3.5" /> Valid invite code
-                  </span>
-                )}
-              </div>
-              {codeError && <p className="text-xs" style={{ color: '#ff6b6b' }}>{codeError}</p>}
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="name" className="text-label" style={{ color: 'rgba(242,237,228,0.4)' }}>FULL NAME</Label>
               <Input id="name" placeholder="Your name"
