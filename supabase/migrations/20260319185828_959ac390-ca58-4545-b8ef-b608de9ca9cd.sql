@@ -1,0 +1,1 @@
+ALTER TABLE public.media_files ADD COLUMN IF NOT EXISTS static_renditions_ready boolean DEFAULT false;

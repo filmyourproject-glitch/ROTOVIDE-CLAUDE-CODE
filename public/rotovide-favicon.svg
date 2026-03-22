@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Background circle -->
+  <circle cx="16" cy="16" r="16" fill="#080808"/>
+
+  <!-- Outer ring - accent yellow, partial arc -->
+  <circle cx="16" cy="16" r="13" fill="none" stroke="#E8FF47" stroke-width="2.5" stroke-dasharray="55 27" stroke-linecap="round"/>
+
+  <!-- Inner ring - white, dashed -->
+  <circle cx="16" cy="16" r="9.5" fill="none" stroke="rgba(242,237,228,0.25)" stroke-width="1.2" stroke-dasharray="6 4" stroke-linecap="round"/>
+
+  <!-- Inner dark circle -->
+  <circle cx="16" cy="16" r="7" fill="#1A1A1A"/>
+
+  <!-- Play triangle -->
+  <polygon points="14,12.5 14,19.5 20.5,16" fill="#E8FF47"/>
+</svg>

@@ -1,0 +1,300 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ROTOVIDE Brand Tokens */
+    --background: 0 0% 3.1%;       /* #080808 VOID */
+    --foreground: 36 30% 92.2%;     /* #F2EDE4 FRAME */
+
+    --card: 0 0% 6.7%;             /* #111111 surface */
+    --card-foreground: 36 30% 92.2%;
+
+    --popover: 0 0% 6.7%;
+    --popover-foreground: 36 30% 92.2%;
+
+    --primary: 72 100% 64%;        /* #E8FF47 SIGNAL */
+    --primary-foreground: 0 0% 3.1%; /* #080808 */
+
+    --secondary: 0 0% 10.2%;       /* #1A1A1A LENS */
+    --secondary-foreground: 36 30% 92.2%;
+
+    --muted: 0 0% 10.2%;
+    --muted-foreground: 36 30% 92.2% / 0.4;
+
+    --accent: 0 0% 10.2%;
+    --accent-foreground: 36 30% 92.2%;
+
+    --destructive: 0 72% 64%;      /* #FF4747 */
+    --destructive-foreground: 36 30% 92.2%;
+
+    --success: 147 100% 64%;       /* #47FF8A */
+    --success-foreground: 0 0% 3.1%;
+
+    --warning: 30 100% 64%;        /* #FFB347 */
+    --warning-foreground: 0 0% 3.1%;
+
+    --border: 36 30% 92.2% / 0.10;
+    --input: 36 30% 92.2% / 0.12;
+    --ring: 72 100% 64%;
+
+    --radius: 0.25rem;             /* 4px — tighter radius */
+
+    --sidebar-background: 0 0% 3.9%;  /* #0a0a0a */
+    --sidebar-foreground: 36 30% 92.2% / 0.5;
+    --sidebar-primary: 72 100% 64%;
+    --sidebar-primary-foreground: 0 0% 3.1%;
+    --sidebar-accent: 36 30% 92.2% / 0.05;
+    --sidebar-accent-foreground: 36 30% 92.2%;
+    --sidebar-border: 36 30% 92.2% / 0.06;
+    --sidebar-ring: 72 100% 64%;
+
+    --surface: 0 0% 6.7%;
+    --surface-border: 36 30% 92.2% / 0.08;
+
+    /* Brand-specific tokens */
+    --accent-dim: 72 100% 64% / 0.15;
+    --accent-dark: 72 100% 40%;    /* #b8cc00 pressed */
+    --stroke: 36 30% 92.2% / 0.10;
+    --stroke-hi: 36 30% 92.2% / 0.20;
+    --faint: 36 30% 92.2% / 0.15;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* Prevent iOS zoom on input focus */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer utilities {
+  .glow-primary {
+    box-shadow: 0 0 0 2px hsl(var(--primary));
+  }
+
+  .surface-card {
+    @apply bg-card border border-border rounded-sm;
+  }
+
+  .transition-default {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  .shadow-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Hide scrollbar on horizontal scroll containers */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* iOS momentum scrolling */
+  .scroll-smooth {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ROTOVIDE Typography scale */
+  .text-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 72px;
+    letter-spacing: 6px;
+    line-height: 1;
+  }
+  .text-hero {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 56px;
+    letter-spacing: 4px;
+    line-height: 1;
+  }
+  .text-h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 40px;
+    letter-spacing: 3px;
+    line-height: 1;
+  }
+  .text-h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 2px;
+    line-height: 1.1;
+  }
+  .text-body {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.6;
+  }
+  .text-small {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+  .text-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .text-mono {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+}
+
+/* ROTOVIDE Animations */
+@keyframes spinRing {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes orbitDot {
+  from { transform: rotate(0deg) translateX(54px); }
+  to   { transform: rotate(360deg) translateX(54px); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0%   { left: -33%; }
+  100% { left: 100%; }
+}
+
+.page-container,
+main,
+[data-page] {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Timeline scrollbar — always visible, large touch target */
+.timeline-scroll {
+  overflow-x: scroll;
+  padding-bottom: 16px;
+  scrollbar-width: thick;
+  scrollbar-color: hsl(72 100% 64%) hsl(0 0% 10.2%);
+}
+
+.timeline-scroll::-webkit-scrollbar {
+  height: 12px;
+}
+
+.timeline-scroll::-webkit-scrollbar-track {
+  background: hsl(0 0% 10.2%);
+  border-radius: 6px;
+  margin: 0 8px;
+}
+
+.timeline-scroll::-webkit-scrollbar-thumb {
+  background: hsl(72 100% 64%);
+  border-radius: 6px;
+  min-width: 44px;
+  border: 2px solid hsl(0 0% 10.2%);
+}
+
+.timeline-scroll::-webkit-scrollbar-thumb:active {
+  background: hsl(0 0% 100%);
+}
+
+@media (max-width: 768px) {
+  .timeline-scroll::-webkit-scrollbar {
+    height: 16px;
+  }
+}
+
+/* Timeline zoom slider */
+.timeline-zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: hsl(0 0% 20%);
+  border-radius: 3px;
+  outline: none;
+}
+
+.timeline-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: hsl(72 100% 64%);
+  border: 2px solid hsl(0 0% 3.1%);
+  cursor: pointer;
+}
+
+.timeline-zoom-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: hsl(72 100% 64%);
+  border: 2px solid hsl(0 0% 3.1%);
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .timeline-zoom-slider::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+  }
+  .timeline-zoom-slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+  }
+}

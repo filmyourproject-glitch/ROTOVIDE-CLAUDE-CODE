@@ -1,0 +1,5 @@
+ALTER TABLE projects
+ADD COLUMN IF NOT EXISTS cutting_strategy TEXT DEFAULT 'auto';
+
+ALTER TABLE projects
+ADD COLUMN IF NOT EXISTS song_sections JSONB;

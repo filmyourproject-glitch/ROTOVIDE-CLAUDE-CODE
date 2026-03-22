@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.deduct_credit(uuid, uuid, integer);

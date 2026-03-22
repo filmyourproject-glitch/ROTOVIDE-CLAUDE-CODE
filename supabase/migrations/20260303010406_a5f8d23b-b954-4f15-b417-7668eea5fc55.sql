@@ -1,0 +1,1 @@
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS lyrics_data jsonb DEFAULT NULL;
