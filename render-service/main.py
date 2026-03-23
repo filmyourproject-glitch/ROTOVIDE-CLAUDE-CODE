@@ -189,7 +189,7 @@ def upload_to_mux(file_path: str) -> dict:
     res = requests.post(
         "https://api.mux.com/video/v1/uploads",
         auth=(MUX_TOKEN_ID, MUX_TOKEN_SECRET),
-        json={"new_asset_settings": {"playback_policy": ["public"], "normalize_audio": False}, "cors_origin": "*"},
+        json={"new_asset_settings": {"playback_policy": ["public"], "mp4_support": "standard", "normalize_audio": False}, "cors_origin": "*"},
         timeout=30,
     )
     res.raise_for_status()
