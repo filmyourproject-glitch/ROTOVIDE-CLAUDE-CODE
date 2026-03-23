@@ -16,6 +16,11 @@ RENDER_SECRET = os.environ["RENDER_SECRET"]
 
 PROXY_URL = f"{SUPABASE_URL}/functions/v1/render-db-proxy"
 
+# Limit concurrent FFmpeg renders to 1 to prevent OOM on Railway.
+# Multiple formats (9:16 + 16:9) each spawn a do_render thread; without
+# this semaphore both run simultaneously and Railway SIGKILLs with exit -9.
+_render_semaphore = threading.Semaphore(1)
+
 LUT_DIR = "/app/luts"
 
 # Color grades that have a corresponding .cube LUT file
@@ -206,8 +211,16 @@ def health():
 def do_render(export_id: str, project_id: str):
     """Run the full render pipeline. Called in a background thread."""
     import traceback
-    print(f"Render started: export_id={export_id} project_id={project_id}", flush=True)
+    print(f"Render queued for semaphore: export_id={export_id}", flush=True)
 
+    with _render_semaphore:
+        print(f"Render started: export_id={export_id} project_id={project_id}", flush=True)
+        _do_render_inner(export_id, project_id)
+
+
+def _do_render_inner(export_id: str, project_id: str):
+    """Inner render logic — runs one at a time, gated by _render_semaphore."""
+    import traceback
     try:
         db_update("exports", {"status": "processing"}, [{"op": "eq", "column": "id", "value": export_id}])
 
