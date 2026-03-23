@@ -336,18 +336,23 @@ def _do_render_inner(export_id: str, project_id: str):
                 raise Exception("No segments rendered successfully")
 
             # Concatenate segments
+            print(f"[Concat] Concatenating {len(segment_paths)} segments...", flush=True)
             concat_list_path = os.path.join(tmpdir, "concat.txt")
             with open(concat_list_path, "w") as f:
                 for seg in segment_paths:
                     f.write(f"file '{seg}'\n")
+            print(f"[Concat] concat.txt written:\n" + "\n".join(f"  {s}" for s in segment_paths), flush=True)
 
             concat_path = os.path.join(tmpdir, "concat_video.mp4")
-            result = subprocess.run([
+            concat_cmd = [
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0",
                 "-i", concat_list_path, "-c", "copy", concat_path,
-            ], capture_output=True, text=True)
+            ]
+            print(f"[Concat] cmd: {' '.join(concat_cmd)}", flush=True)
+            result = subprocess.run(concat_cmd, capture_output=True, text=True)
             if result.returncode != 0:
-                raise Exception(f"Concat failed: {result.stderr[-500:]}")
+                raise Exception(f"Concat failed (exit {result.returncode}):\n{result.stderr}")
+            print(f"[Concat] done — {os.path.getsize(concat_path) // 1024} KB", flush=True)
 
             # Mix audio
             final_path = os.path.join(tmpdir, "final.mp4")
@@ -376,9 +381,11 @@ def _do_render_inner(export_id: str, project_id: str):
                 final_path,
             ]
 
+            print(f"[AudioMix] cmd: {' '.join(audio_cmd)}", flush=True)
             result = subprocess.run(audio_cmd, capture_output=True, text=True)
             if result.returncode != 0:
-                raise Exception(f"Audio mix failed: {result.stderr[-500:]}")
+                raise Exception(f"Audio mix failed (exit {result.returncode}):\n{result.stderr}")
+            print(f"[AudioMix] done — {os.path.getsize(final_path) // 1024} KB", flush=True)
 
             print("Uploading final video to Mux...", flush=True)
             mux_result = upload_to_mux(final_path)
