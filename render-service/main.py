@@ -69,16 +69,27 @@ def build_ffmpeg_segment_cmd(
     if export_format == "9:16":
         # Face-tracked crop
         if face_keyframes:
+            def _kf_t(k):
+                t = k.get("t", 0)
+                return float(t[0]) if isinstance(t, (list, tuple)) else float(t) if t is not None else 0.0
+
             valid_kfs = [k for k in face_keyframes if isinstance(k, dict)]
             clip_start = start
             clip_end = start + duration
-            segment_kfs = [k for k in valid_kfs if clip_start <= k.get("t", 0) <= clip_end]
+            segment_kfs = [k for k in valid_kfs if clip_start <= _kf_t(k) <= clip_end]
             if not segment_kfs and valid_kfs:
-                segment_kfs = [min(valid_kfs, key=lambda k: abs(k.get("t", 0) - clip_start))]
+                segment_kfs = [min(valid_kfs, key=lambda k: abs(_kf_t(k) - clip_start))]
 
             if segment_kfs:
-                total_weight = sum(k.get("confidence", 0.5) for k in segment_kfs) or len(segment_kfs)
-                face_x = sum(k.get("x", 0.5) * k.get("confidence", 0.5) for k in segment_kfs) / total_weight
+                def _f(k, key, default):
+                    """Extract a scalar float from a keyframe value that may be a list."""
+                    v = k.get(key, default)
+                    if isinstance(v, (list, tuple)):
+                        return float(v[0]) if v else default
+                    return float(v) if v is not None else default
+
+                total_weight = sum(_f(k, "confidence", 0.5) for k in segment_kfs) or len(segment_kfs)
+                face_x = sum(_f(k, "x", 0.5) * _f(k, "confidence", 0.5) for k in segment_kfs) / total_weight
                 face_x = max(0.0, min(1.0, face_x))
                 crop = (
                     f"crop=trunc(ih*9/16):ih:"
