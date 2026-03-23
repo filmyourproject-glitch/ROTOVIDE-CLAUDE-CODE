@@ -1,12 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { X, Copy, Check, RefreshCw, Download, Loader2, Lock } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Section } from "@/types";
-import { useCreditSystem } from "@/hooks/useCreditSystem";
-import { ExportConfirmModal } from "@/components/credits/ExportConfirmModal";
 
 type ExportFormat = "9:16" | "16:9" | "1:1" | "highlight";
 type Resolution = "720p" | "1080p" | "4k";
@@ -51,8 +48,6 @@ export function ExportPanel({
   const [selectedFormats, setSelectedFormats] = useState<ExportFormat[]>(["9:16", "16:9"]);
   const [resolution, setResolution] = useState<Resolution>("1080p");
   const [includeLyrics, setIncludeLyrics] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const { totalAvailable, canExport: checkCanExport, alertLevel } = useCreditSystem();
 
   // Social copy
   const [socialCopy, setSocialCopy] = useState<SocialCopy | null>(null);
@@ -110,7 +105,7 @@ export function ExportPanel({
         .from("exports")
         .select("id, status, download_url")
         .eq("project_id", projectId)
-        .in("status", ["queued", "processing"])
+        .in("status", ["processing"])
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -207,11 +202,12 @@ export function ExportPanel({
       toast.error("Select at least one format.");
       return;
     }
-    setShowConfirmModal(true);
+    handleExport();
   };
 
   const handleExport = async () => {
-    setShowConfirmModal(false);
+    lastStatusRef.current = null;
+    setActiveExportId(null);
     setExporting(true);
     setDownloadUrl(null);
 
@@ -562,25 +558,7 @@ export function ExportPanel({
 
           {/* SECTION 3 — EXPORT BUTTON + PROGRESS */}
           <div className="space-y-3">
-            {!exporting && renderSteps.length === 0 && (
-              <>
-                <button
-                  onClick={handleExportClick}
-                  disabled={selectedFormats.length === 0}
-                  className={cn(
-                    "w-full py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40",
-                    "bg-primary text-primary-foreground hover:shadow-[0_0_24px_hsl(var(--primary)/0.3)]"
-                  )}
-                  style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 3, fontSize: 16 }}
-                >
-                  START EXPORT
-                </button>
-                <p className="text-xs text-muted-foreground text-center font-mono">
-                  Your video will be ready in 1-3 minutes
-                </p>
-              </>
-            )}
-
+            {/* Progress steps — shown during and after render */}
             {renderSteps.length > 0 && (
               <div className="space-y-2">
                 {renderSteps.map((step, i) => (
@@ -627,18 +605,32 @@ export function ExportPanel({
                 )}
               </div>
             )}
+
+            {/* START EXPORT / EXPORT AGAIN — always visible when not actively rendering */}
+            {!exporting && (
+              <>
+                <button
+                  onClick={handleExportClick}
+                  disabled={selectedFormats.length === 0}
+                  className={cn(
+                    "w-full py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40",
+                    "bg-primary text-primary-foreground hover:shadow-[0_0_24px_hsl(var(--primary)/0.3)]"
+                  )}
+                  style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 3, fontSize: 16 }}
+                >
+                  {renderSteps.length > 0 ? "EXPORT AGAIN" : "START EXPORT"}
+                </button>
+                {renderSteps.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center font-mono">
+                    Your video will be ready in 1-3 minutes
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <ExportConfirmModal
-        open={showConfirmModal}
-        creditCost={selectedFormats.length}
-        creditsRemaining={totalAvailable}
-        plan={checkCanExport(1).watermarked ? "free" : "pro"}
-        onConfirm={handleExport}
-        onCancel={() => setShowConfirmModal(false)}
-      />
     </>
   );
 }
