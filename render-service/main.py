@@ -250,6 +250,7 @@ def do_render(export_id: str, project_id: str):
             print(f"Downloading song: {song_file['file_name']}", flush=True)
             song_path = os.path.join(tmpdir, "song.mp3")
             download_file(get_signed_url(song_file["storage_path"]), song_path)
+            print(f"Song downloaded: {os.path.getsize(song_path) // 1024} KB", flush=True)
 
             # Download unique clips
             downloaded_clips = {}
@@ -271,8 +272,13 @@ def do_render(export_id: str, project_id: str):
                     print(f"Warning: No download source for clip {clip_id}", flush=True)
                     continue
                 clip_path = os.path.join(tmpdir, f"clip_{clip_id}.mp4")
-                print(f"Downloading clip: {media['file_name']}", flush=True)
+                print(f"Downloading clip: {media['file_name']} from {clip_url}", flush=True)
                 download_file(clip_url, clip_path)
+                clip_size = os.path.getsize(clip_path)
+                if clip_size < 50_000:
+                    print(f"Warning: clip {clip_id} downloaded only {clip_size} bytes — not a valid video, skipping", flush=True)
+                    continue
+                print(f"Clip downloaded: {clip_id} — {clip_size // 1024} KB", flush=True)
                 downloaded_clips[clip_id] = clip_path
 
             # Render each segment
@@ -286,6 +292,8 @@ def do_render(export_id: str, project_id: str):
                 duration = tc["end"] - tc["start"]
                 if duration <= 0:
                     continue
+
+                print(f"[segment {i}] clip_id={clip_id} source_offset={start:.2f}s duration={duration:.2f}s", flush=True)
 
                 seg_path = os.path.join(tmpdir, f"seg_{i:04d}.mp4")
                 media = media_files.get(clip_id, {})
@@ -304,9 +312,10 @@ def do_render(export_id: str, project_id: str):
                     intensity=color_grade_intensity,
                 )
 
+                print(f"[FFmpeg] segment {i}: {' '.join(cmd)}", flush=True)
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0:
-                    print(f"FFmpeg error on segment {i}: {result.stderr[-500:]}", flush=True)
+                    print(f"[FFmpeg] FAILED segment {i} (exit {result.returncode}):\n{result.stderr}", flush=True)
                     continue
                 segment_paths.append(seg_path)
 
