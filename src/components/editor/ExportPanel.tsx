@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { X, Copy, Check, RefreshCw, Download, Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,35 @@ export function ExportPanel({
   const [renderSteps, setRenderSteps] = useState<RenderStep[]>([]);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [activeExportId, setActiveExportId] = useState<string | null>(null);
+  // Track last seen status to avoid duplicate toasts from realtime + polling both firing
+  const lastStatusRef = useRef<string | null>(null);
+
+  // Shared handler for export status changes (used by both realtime and polling)
+  const applyStatusUpdate = useCallback((status: string, url?: string | null) => {
+    if (status === lastStatusRef.current) return;
+    lastStatusRef.current = status;
+
+    if (status === "processing") {
+      setRenderSteps(prev => prev.map((s, i) =>
+        i < 2 ? { ...s, status: "done" } :
+        i === 2 ? { ...s, status: "active" } : s
+      ));
+    } else if (status === "completed") {
+      setDownloadUrl(url || null);
+      setRenderSteps(prev => prev.map(s => ({ ...s, status: "done" as const })));
+      setExporting(false);
+      toast.success("Your video is ready to download!");
+    } else if (status === "failed") {
+      setRenderSteps(prev => {
+        const activeIdx = prev.findIndex(st => st.status === "active");
+        return prev.map((s, i) =>
+          i === activeIdx ? { ...s, status: "error" as const } : s
+        );
+      });
+      setExporting(false);
+      toast.error("Render failed — please try again.");
+    }
+  }, []);
 
   // Generate social copy on panel open
   useEffect(() => {
@@ -72,6 +101,33 @@ export function ExportPanel({
       generateSocialCopy();
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // On panel open, recover any in-progress export for this project
+  useEffect(() => {
+    if (!open || activeExportId) return;
+    (async () => {
+      const { data } = await supabase
+        .from("exports")
+        .select("id, status, download_url")
+        .eq("project_id", projectId)
+        .in("status", ["queued", "processing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        lastStatusRef.current = data.status;
+        setActiveExportId(data.id);
+        setExporting(true);
+        setRenderSteps([
+          { label: "Settings saved", status: "done" },
+          { label: "Render queued...", status: data.status === "processing" ? "done" : "active" },
+          { label: "Building your video...", status: data.status === "processing" ? "active" : "pending" },
+          { label: "Uploading to cloud...", status: "pending" },
+          { label: "Ready to download", status: "pending" },
+        ]);
+      }
+    })();
+  }, [open, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Realtime subscription for export status
   useEffect(() => {
@@ -88,30 +144,7 @@ export function ExportPanel({
           filter: `id=eq.${activeExportId}`,
         },
         (payload) => {
-          const newStatus = payload.new?.status;
-          console.log("Export status update:", newStatus);
-
-          if (newStatus === "processing") {
-            setRenderSteps(prev => prev.map((s, i) =>
-              i === 0 ? { ...s, status: "done" } :
-              i === 1 ? { ...s, status: "done" } :
-              i === 2 ? { ...s, status: "active" } : s
-            ));
-          } else if (newStatus === "completed") {
-            const url = payload.new?.download_url;
-            setDownloadUrl(url || null);
-            setRenderSteps(prev => prev.map(s => ({ ...s, status: "done" as const })));
-            setExporting(false);
-            toast.success("Your video is ready to download!");
-          } else if (newStatus === "failed") {
-            setRenderSteps(prev => prev.map((s, i) => {
-              const activeIdx = prev.findIndex(st => st.status === "active");
-              if (i === activeIdx) return { ...s, status: "error" as const };
-              return s;
-            }));
-            setExporting(false);
-            toast.error("Render failed — please try again.");
-          }
+          applyStatusUpdate(payload.new?.status, payload.new?.download_url);
         }
       )
       .subscribe();
@@ -119,7 +152,26 @@ export function ExportPanel({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeExportId]);
+  }, [activeExportId, applyStatusUpdate]);
+
+  // Polling fallback — catches updates if the realtime subscription drops or the
+  // panel was closed and reopened while a render was in flight
+  useEffect(() => {
+    if (!activeExportId || !exporting) return;
+
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("exports")
+        .select("status, download_url")
+        .eq("id", activeExportId)
+        .single();
+      if (data) {
+        applyStatusUpdate(data.status, data.download_url);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [activeExportId, exporting, applyStatusUpdate]);
 
   const generateSocialCopy = useCallback(async () => {
     setSocialLoading(true);
@@ -358,10 +410,11 @@ export function ExportPanel({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — disabled while a render is in flight to prevent losing progress */}
       <div
         className="fixed inset-0 bg-black/50 z-50"
-        onClick={onClose}
+        onClick={exporting ? undefined : onClose}
+        title={exporting ? "Render in progress — wait for it to complete" : undefined}
       />
 
       {/* Panel — drawer on desktop, bottom sheet on mobile */}

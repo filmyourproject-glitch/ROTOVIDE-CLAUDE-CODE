@@ -29,15 +29,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fire and forget — don't await the full render
-    fetch(`${railwayUrl}/render`, {
+    // Await the fetch — Railway responds 202 immediately and renders in a background thread.
+    // Do NOT use fire-and-forget: Deno Deploy kills unawaited promises when the Response is returned.
+    const renderRes = await fetch(`${railwayUrl}/render`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Render-Secret": renderSecret,
       },
       body: JSON.stringify({ export_id, project_id }),
-    }).catch((err) => console.error("Render trigger failed:", err));
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!renderRes.ok) {
+      const errText = await renderRes.text().catch(() => "");
+      console.error(`Render service error ${renderRes.status}: ${errText}`);
+      return new Response(JSON.stringify({ error: "Render service unavailable" }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify({ success: true, message: "Render started" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

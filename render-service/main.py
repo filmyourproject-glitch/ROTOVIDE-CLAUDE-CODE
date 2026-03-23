@@ -3,6 +3,7 @@ import json
 import uuid
 import subprocess
 import tempfile
+import threading
 import requests
 from flask import Flask, request, jsonify
 
@@ -191,22 +192,14 @@ def health():
     return jsonify({"status": "ok", "luts_loaded": lut_count})
 
 
-@app.route("/render", methods=["POST"])
-def render():
-    secret = request.headers.get("X-Render-Secret")
-    if secret != RENDER_SECRET:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    body = request.get_json()
-    export_id = body.get("export_id")
-    project_id = body.get("project_id")
-    if not export_id or not project_id:
-        return jsonify({"error": "Missing export_id or project_id"}), 400
-
+def do_render(export_id: str, project_id: str):
+    """Run the full render pipeline. Called in a background thread."""
+    import traceback
     print(f"Render started: export_id={export_id} project_id={project_id}", flush=True)
-    db_update("exports", {"status": "processing"}, [{"op": "eq", "column": "id", "value": export_id}])
 
     try:
+        db_update("exports", {"status": "processing"}, [{"op": "eq", "column": "id", "value": export_id}])
+
         project = db_select("projects", "*", [{"op": "eq", "column": "id", "value": project_id}], single=True)
         timeline_data = project["timeline_data"]
         color_grade = project.get("color_grade", "none")
@@ -364,14 +357,32 @@ def render():
             }, [{"op": "eq", "column": "id", "value": export_id}])
 
             print(f"Render complete. Mux upload_id: {upload_id}", flush=True)
-            return jsonify({"success": True, "upload_id": upload_id})
 
     except Exception as e:
-        import traceback
         print(f"Render failed: {e}", flush=True)
         print(traceback.format_exc(), flush=True)
         db_update("exports", {"status": "failed"}, [{"op": "eq", "column": "id", "value": export_id}])
-        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/render", methods=["POST"])
+def render():
+    secret = request.headers.get("X-Render-Secret")
+    if secret != RENDER_SECRET:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    body = request.get_json()
+    export_id = body.get("export_id")
+    project_id = body.get("project_id")
+    if not export_id or not project_id:
+        return jsonify({"error": "Missing export_id or project_id"}), 400
+
+    # Respond 202 immediately so the Supabase edge function doesn't time out.
+    # The actual render runs in a daemon thread — if the service restarts mid-render
+    # the export status will be stuck in "processing" and needs a manual reset.
+    thread = threading.Thread(target=do_render, args=(export_id, project_id), daemon=True)
+    thread.start()
+    print(f"Render thread started: export_id={export_id}", flush=True)
+    return jsonify({"success": True, "message": "Render started"}), 202
 
 
 @app.route("/download-youtube", methods=["POST"])
