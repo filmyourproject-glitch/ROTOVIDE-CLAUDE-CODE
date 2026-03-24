@@ -2,8 +2,15 @@ import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { TimelineClip, Section } from "@/types";
 import { Minus, Plus, Crosshair, Trash2, Copy } from "lucide-react";
-
 import type { EditTool } from "@/components/editor/EditingToolbar";
+
+import { ClipBlock, DropLine } from "./timeline/ClipBlock";
+import {
+  BASE_PPS, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP,
+  LONG_PRESS_MS, LONG_PRESS_MOVE_THRESHOLD, MIN_CLIP_DURATION,
+  PLAYHEAD_OFFSET_PCT, SCRUB_THRESHOLD_PX,
+  SECTION_PILL_COLORS, formatTimeBadge, recalcTimings, recalcTimingsForType,
+} from "./timeline/utils";
 
 interface TimelineProps {
   duration: number;
@@ -21,31 +28,6 @@ interface TimelineProps {
   selectedClipId?: string | null;
   onSelectClip?: (id: string | null) => void;
   onSplitAtPlayhead?: () => void;
-}
-
-const BASE_PPS = 80;
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 8;
-const ZOOM_STEP = 0.5;
-const LONG_PRESS_MS = 500;
-const LONG_PRESS_MOVE_THRESHOLD = 8;
-const MIN_CLIP_DURATION = 0.5;
-const PLAYHEAD_OFFSET_PCT = 0.25;
-const SCRUB_THRESHOLD_PX = 5;
-const TAP_THRESHOLD_MS = 200;
-
-const SECTION_PILL_COLORS: Record<string, string> = {
-  intro: "bg-muted-foreground/30 text-muted-foreground",
-  verse: "bg-primary/50 text-primary-foreground",
-  chorus: "bg-primary/80 text-primary-foreground",
-  bridge: "bg-warning/50 text-warning-foreground",
-  outro: "bg-muted-foreground/30 text-muted-foreground",
-};
-
-function formatTimeBadge(s: number) {
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
 export function Timeline({
@@ -193,7 +175,6 @@ export function Timeline({
         const delta = e.deltaY > 0 ? -0.5 : 0.5;
         changeZoom(delta);
       } else {
-        // Remap vertical scroll to horizontal
         if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
           e.preventDefault();
           el.scrollLeft += e.deltaY;
@@ -241,17 +222,14 @@ export function Timeline({
   // ── Scrub / Tap-to-seek on timeline background ──
   const handleBgMouseDown = useCallback((e: React.MouseEvent) => {
     if (isDragging.current || isTrimming.current) return;
-    // Don't start scrub if clicking on a clip (handled by clip handlers)
     scrubStartX.current = e.clientX;
     scrubStartTime.current = Date.now();
     scrubStartTs.current = xToTime(e.clientX);
-    isScrubbing.current = false; // will become true on movement
+    isScrubbing.current = false;
 
-    // Immediately seek on mousedown
     const time = xToTime(e.clientX);
     onSeek(time);
 
-    // Pause during scrub
     if (isPlaying) {
       wasPlayingBeforeScrub.current = true;
       onPlayPause?.(false);
@@ -272,8 +250,6 @@ export function Timeline({
     };
 
     const onUp = () => {
-      const elapsed = Date.now() - scrubStartTime.current;
-      const dx = Math.abs(scrubStartX.current);
       if (isScrubbing.current && wasPlayingBeforeScrub.current) {
         onPlayPause?.(true);
       }
@@ -389,7 +365,6 @@ export function Timeline({
     }
   }, [selectedClipId, isMobile, activeTool, onSplitAtPlayhead]);
 
-  // Deselect on outside tap
   const handleOutsideTap = useCallback(() => {
     if (!isDragging.current && !isTrimming.current && !isScrubbing.current) {
       setSelectedClipId(null);
@@ -623,136 +598,21 @@ export function Timeline({
     };
   }, [isMobile, pps, endTrim]);
 
-  // ── Render Helpers ──
   const selectedClip = clips.find(c => c.id === selectedClipId);
-
-  const renderClipBlock = (clip: TimelineClip, rowType: "performance" | "broll") => {
-    // Effects stripped — hard cuts only
-    const isPerf = rowType === "performance";
-    const isSelected = clip.id === selectedClipId;
-    const isBeingDragged = clip.id === dragClipId;
-    const isBeingTrimmed = clip.id === trimClipId;
-    const isSplitTarget = activeTool === "split" && currentTime > clip.start && currentTime < clip.end;
-
-    let displayStart = clip.start;
-    let displayEnd = clip.end;
-    if (isBeingTrimmed && trimSide) {
-      if (trimSide === "left") {
-        displayStart = Math.max(0, clip.start + trimDelta);
-        if (displayEnd - displayStart < MIN_CLIP_DURATION) displayStart = displayEnd - MIN_CLIP_DURATION;
-      } else {
-        displayEnd = Math.min(duration, clip.end + trimDelta);
-        if (displayEnd - displayStart < MIN_CLIP_DURATION) displayEnd = displayStart + MIN_CLIP_DURATION;
-      }
-    }
-
-    const widthPx = (displayEnd - displayStart) * pps;
-    const leftPx = displayStart * pps;
-    const clipName = clipNames?.[clip.clip_id]?.replace(/\.[^/.]+$/, "") ?? (isPerf ? "Perf" : "B-Roll");
-    const thumbUrl = clipThumbnails?.[clip.clip_id];
-    const showLabel = widthPx > 30;
-    const clipDur = (displayEnd - displayStart).toFixed(1);
-
-    return (
-      <div
-        key={clip.id}
-        className={cn(
-          "absolute rounded flex items-center cursor-pointer transition-all duration-100",
-          isPerf
-            ? "border-primary/30 bg-primary/80"
-            : "border-[#4ECDC4]/30 bg-[#4ECDC4]/70",
-          isSelected && "ring-2 ring-primary",
-          isBeingDragged && "opacity-90 scale-105 shadow-[0_0_16px_hsl(var(--primary)/0.4)] z-30",
-          isSplitTarget && "ring-1 ring-primary/50",
-          "border"
-        )}
-        style={{
-          left: leftPx,
-          width: widthPx,
-          height: "100%",
-          minWidth: 8,
-          ...(thumbUrl ? {
-            backgroundImage: `url(${thumbUrl})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          } : {}),
-        }}
-        title={`${clipName}: ${clipDur}s`}
-        onClick={(e) => handleClipTap(e, clip.id)}
-        onTouchStart={(e) => handleClipTouchStart(e, clip.id)}
-        onTouchMove={handleClipTouchMove}
-        onTouchEnd={handleClipTouchEnd}
-        onMouseDown={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const x = e.clientX - rect.left;
-          if (x > 24 && x < rect.width - 24) {
-            handleClipMouseDown(e, clip.id);
-          }
-        }}
-      >
-        {/* Left trim handle */}
-        <div
-          className={cn(
-            "absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-col-resize z-10",
-            isMobile ? "opacity-100" : "opacity-0 hover:opacity-100",
-            "transition-opacity"
-          )}
-          onMouseDown={(e) => startTrim(clip.id, "left", e.clientX, e)}
-          onTouchStart={(e) => startTrim(clip.id, "left", e.touches[0].clientX, e)}
-        >
-          <div className="w-1 h-3/5 rounded-full bg-primary" />
-        </div>
-
-        {/* Clip label */}
-        {showLabel && (
-          <span className={cn(
-            "text-[10px] truncate font-mono font-medium px-7",
-            isPerf ? "text-primary-foreground/80" : "text-success-foreground/80"
-          )}>
-            {clipName}
-          </span>
-        )}
-
-
-        {/* Right trim handle */}
-        <div
-          className={cn(
-            "absolute right-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-col-resize z-10",
-            isMobile ? "opacity-100" : "opacity-0 hover:opacity-100",
-            "transition-opacity"
-          )}
-          onMouseDown={(e) => startTrim(clip.id, "right", e.clientX, e)}
-          onTouchStart={(e) => startTrim(clip.id, "right", e.touches[0].clientX, e)}
-        >
-          <div className="w-1 h-3/5 rounded-full bg-primary" />
-        </div>
-
-        {/* Trim duration badge */}
-        {isBeingTrimmed && (
-          <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-secondary text-primary text-[10px] font-mono px-2 py-0.5 rounded whitespace-nowrap z-40">
-            {clipDur}s
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Drop insertion line
-  const renderDropLine = (rowClips: TimelineClip[]) => {
-    if (dropIndex === null || !dragClipId) return null;
-    const draggedClip = clips.find(c => c.id === dragClipId);
-    if (!draggedClip) return null;
-    const sameType = rowClips.filter(c => c.type === draggedClip.type && c.id !== dragClipId);
-    if (sameType.length === 0 && dropIndex === 0) {
-      return <div className="absolute top-0 bottom-0 w-0.5 bg-primary z-20" style={{ left: 0 }} />;
-    }
-    const idx = Math.min(dropIndex, sameType.length);
-    const refClip = idx > 0 ? sameType[idx - 1] : null;
-    const x = refClip ? refClip.end * pps : 0;
-    return <div className="absolute top-0 bottom-0 w-0.5 bg-primary z-20" style={{ left: x }} />;
-  };
-
   const playheadLeft = currentTime * pps;
+
+  // Shared props for ClipBlock
+  const clipBlockProps = {
+    pps, duration, isMobile, activeTool, currentTime,
+    selectedClipId, dragClipId, trimClipId, trimSide, trimDelta,
+    clipNames, clipThumbnails,
+    onClipTap: handleClipTap,
+    onClipTouchStart: handleClipTouchStart,
+    onClipTouchMove: handleClipTouchMove,
+    onClipTouchEnd: handleClipTouchEnd,
+    onClipMouseDown: handleClipMouseDown,
+    onTrimStart: startTrim,
+  };
 
   return (
     <div className="flex flex-col gap-1" ref={containerRef} onClick={handleOutsideTap}>
@@ -860,14 +720,30 @@ export function Timeline({
 
           {/* Performance clip row */}
           <div className="absolute left-0 right-0" style={{ top: 0, height: isMobile ? 52 : 48 }}>
-            {perfClips.map(clip => renderClipBlock(clip, "performance"))}
-            {dragClipId && clips.find(c => c.id === dragClipId)?.type === "performance" && renderDropLine(perfClips)}
+            {perfClips.map(clip => (
+              <ClipBlock key={clip.id} clip={clip} rowType="performance" {...clipBlockProps} />
+            ))}
+            <DropLine
+              dropIndex={dropIndex}
+              dragClipId={dragClipId && clips.find(c => c.id === dragClipId)?.type === "performance" ? dragClipId : null}
+              clips={clips}
+              rowClips={perfClips}
+              pps={pps}
+            />
           </div>
 
           {/* B-Roll clip row */}
           <div className="absolute left-0 right-0" style={{ top: isMobile ? 56 : 52, height: isMobile ? 36 : 40 }}>
-            {brollClips.map(clip => renderClipBlock(clip, "broll"))}
-            {dragClipId && clips.find(c => c.id === dragClipId)?.type === "broll" && renderDropLine(brollClips)}
+            {brollClips.map(clip => (
+              <ClipBlock key={clip.id} clip={clip} rowType="broll" {...clipBlockProps} />
+            ))}
+            <DropLine
+              dropIndex={dropIndex}
+              dragClipId={dragClipId && clips.find(c => c.id === dragClipId)?.type === "broll" ? dragClipId : null}
+              clips={clips}
+              rowClips={brollClips}
+              pps={pps}
+            />
           </div>
 
           {/* Audio track row */}
@@ -897,7 +773,6 @@ export function Timeline({
             onMouseDown={handlePlayheadDown}
             onTouchStart={handlePlayheadDown}
           >
-            {/* Visual playhead line */}
             <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 pointer-events-none" style={{ background: "#FF4444" }}>
               <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full" style={{ background: "#FF4444" }} />
             </div>
@@ -907,19 +782,11 @@ export function Timeline({
           {showTimeBadge && (
             <div
               className="absolute z-50 pointer-events-none"
-              style={{
-                left: playheadLeft,
-                top: -28,
-                transform: "translateX(-50%)",
-              }}
+              style={{ left: playheadLeft, top: -28, transform: "translateX(-50%)" }}
             >
               <div
                 className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap"
-                style={{
-                  background: "hsl(0 0% 10.2%)",
-                  color: "hsl(72 100% 64%)",
-                  fontFamily: "'Space Mono', monospace",
-                }}
+                style={{ background: "hsl(0 0% 10.2%)", color: "hsl(72 100% 64%)", fontFamily: "'Space Mono', monospace" }}
               >
                 {formatTimeBadge(currentTime)}
               </div>
@@ -930,10 +797,7 @@ export function Timeline({
           {activeTool === "split" && (
             <div
               className="absolute top-0 bottom-0 w-0 z-20 pointer-events-none"
-              style={{
-                left: playheadLeft,
-                borderLeft: "2px dashed hsl(72 100% 64%)",
-              }}
+              style={{ left: playheadLeft, borderLeft: "2px dashed hsl(72 100% 64%)" }}
             />
           )}
         </div>
@@ -1014,20 +878,4 @@ export function Timeline({
       )}
     </div>
   );
-}
-
-function recalcTimings(clips: TimelineClip[]): TimelineClip[] {
-  const perf = clips.filter(c => c.type === "performance");
-  const broll = clips.filter(c => c.type === "broll");
-  return [...recalcTimingsForType(perf), ...recalcTimingsForType(broll)].sort((a, b) => a.start - b.start);
-}
-
-function recalcTimingsForType(clips: TimelineClip[]): TimelineClip[] {
-  let cursor = clips.length > 0 ? clips[0].start : 0;
-  return clips.map(c => {
-    const dur = c.end - c.start;
-    const updated = { ...c, start: cursor, end: cursor + dur };
-    cursor += dur;
-    return updated;
-  });
 }

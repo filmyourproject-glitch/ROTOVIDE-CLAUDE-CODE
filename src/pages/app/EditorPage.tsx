@@ -1,11 +1,12 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, AlertTriangle, Undo2, Redo2, Download, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, Undo2, Redo2, Download, ChevronUp, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { VideoPreview } from "@/components/editor/VideoPreview";
 import { Timeline } from "@/components/editor/Timeline";
 import { EditorControlPanel } from "@/components/editor/EditorControlPanel";
 import { ExportPanel } from "@/components/editor/ExportPanel";
+import { DirectorChat } from "@/components/editor/DirectorChat";
 import { EditingToolbar, type EditTool } from "@/components/editor/EditingToolbar";
 import { MobilePanelSheet, type TabId } from "@/components/editor/MobilePanelSheet";
 import { useAutosave } from "@/hooks/useAutosave";
@@ -93,6 +94,7 @@ export default function EditorPage() {
   const [mobileTab, setMobileTab] = useState<TabId | null>(null);
   const [timelineExpanded, setTimelineExpanded] = useState(false);
   const [exportPanelOpen, setExportPanelOpen] = useState(false);
+  const [directorChatOpen, setDirectorChatOpen] = useState(false);
 
   // Lyrics caption state
   const [lyricsWords, setLyricsWords] = useState<LyricWord[]>([]);
@@ -206,6 +208,34 @@ export default function EditorPage() {
     const newTd = { ...timelineData, timeline: newClips };
     updateTimelineWithHistory(newTd);
   }, [timelineData, currentTime, updateTimelineWithHistory]);
+
+  // ── Director Chat: apply AI placements to timeline ──
+  const handleApplyPlacements = useCallback((placements: { timestamp: number; type: "broll" | "performance"; duration_beats: number; beat_index: number; reason: string; effect: string }[]) => {
+    if (!timelineData || !placements.length) return;
+    const bpmVal = timelineData.bpm || 140;
+    const secondsPerBeat = 60 / bpmVal;
+    const newClips: TimelineClip[] = placements.map((p, i) => {
+      const duration = p.duration_beats * secondsPerBeat;
+      const existingSameType = clips.filter(c => c.type === p.type);
+      const referenceClip = existingSameType[i % Math.max(1, existingSameType.length)];
+      return {
+        id: `ai_${Date.now()}_${i}`,
+        clip_id: referenceClip?.clip_id ?? clips[0]?.clip_id ?? "",
+        type: p.type,
+        start: p.timestamp,
+        end: p.timestamp + duration,
+        source_offset: referenceClip?.source_offset ?? 0,
+        mute_original_audio: true,
+        beat_aligned: true,
+        placement_reason: p.reason,
+        crop: null,
+        effects: p.effect && p.effect !== "hard_cut" ? [{ type: p.effect as any }] : [],
+      };
+    });
+    const newTd = { ...timelineData, timeline: newClips };
+    updateTimelineWithHistory(newTd);
+    setDirectorChatOpen(false);
+  }, [timelineData, clips, updateTimelineWithHistory]);
 
   // ── Keyboard Shortcuts ──
   useEffect(() => {
@@ -1063,6 +1093,18 @@ export default function EditorPage() {
           ))}
         </div>
 
+        {/* Director Chat — desktop only */}
+        <Button
+          size="sm"
+          variant="outline"
+          className="hidden md:flex h-9 px-3 gap-2 shrink-0"
+          style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2, fontSize: 14 }}
+          onClick={() => setDirectorChatOpen(true)}
+        >
+          <Sparkles className="w-4 h-4" />
+          DIRECTOR
+        </Button>
+
         {/* Export */}
         <Button
           size="sm"
@@ -1196,6 +1238,19 @@ export default function EditorPage() {
           <EditorControlPanel {...controlPanelProps} activeTab={mobileTab} />
         </MobilePanelSheet>
       )}
+
+      {/* Director Chat */}
+      <DirectorChat
+        open={directorChatOpen}
+        onClose={() => setDirectorChatOpen(false)}
+        bpm={timelineData?.bpm || project?.bpm || 140}
+        songDuration={duration}
+        stylePreset={stylePreset}
+        sections={sections}
+        clips={clips}
+        beats={beats}
+        onApplyPlacements={handleApplyPlacements}
+      />
 
       {/* Export Panel */}
       <ExportPanel

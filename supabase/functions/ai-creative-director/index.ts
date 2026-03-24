@@ -28,9 +28,15 @@ Deno.serve(async (req) => {
       performanceClipCount,
       brollClipCount,
       beatTimestamps,
+      user_message,
     } = await req.json();
 
+    const directorInstruction = user_message
+      ? `\nThe artist has given you a specific direction: "${user_message}"\nApply this direction when generating the placements below. Honor the artist's intent above default style rules.\n`
+      : "";
+
     const prompt = `You are a professional music video director specializing in rap and hip-hop videos.
+${directorInstruction}
 
 Here is the song data:
 - BPM: ${bpm}

@@ -1,4 +1,4 @@
-import { Film, Play, Pause, Loader2 } from "lucide-react";
+import { Film, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Hls from "hls.js";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,8 @@ import { type FaceCrop, getSmartCropPosition } from "@/lib/faceDetection";
 import { getFacePositionAtTime, type FaceKeyframe } from "@/lib/faceTracking";
 import { LyricsCaptionOverlay } from "./LyricsCaptionOverlay";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
+import { TransportControls } from "./video-preview/TransportControls";
+import { FaceTrackingBadge, WatermarkOverlay } from "./video-preview/VideoOverlays";
 
 export interface CameraEntry {
   url: string;
@@ -95,11 +97,6 @@ export function VideoPreview({
   const [camerasReady, setCamerasReady] = useState(false);
 
   const filter = getColorGradeFilter(colorGrade, colorGradeIntensity);
-  const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
-
-  const [isSeekDragging, setIsSeekDragging] = useState(false);
-  const [seekTooltipTime, setSeekTooltipTime] = useState<number | null>(null);
-  const seekBarRef = useRef<HTMLDivElement>(null);
 
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < 768 : false
@@ -119,7 +116,6 @@ export function VideoPreview({
     const totalCameras = cameraIds.length;
 
     for (const cameraId of cameraIds) {
-      // Skip if already loaded with same URL
       if (hlsRefs.current[cameraId]) {
         readyCount++;
         continue;
@@ -130,14 +126,10 @@ export function VideoPreview({
 
       const camera = cameraRegistry[cameraId];
       if (camera.url.endsWith(".m3u8") && Hls.isSupported()) {
-        const hls = new Hls({
-          startFragPrefetch: true,
-          maxBufferLength: 30, // buffer generously — all cameras play simultaneously
-        });
+        const hls = new Hls({ startFragPrefetch: true, maxBufferLength: 30 });
         hls.loadSource(camera.url);
         hls.attachMedia(video);
         hlsRefs.current[cameraId] = hls;
-
         video.addEventListener("canplay", () => {
           readyCount++;
           if (readyCount >= totalCameras) setCamerasReady(true);
@@ -166,9 +158,7 @@ export function VideoPreview({
   // ── Cleanup all HLS on unmount ──
   useEffect(() => {
     return () => {
-      for (const hls of Object.values(hlsRefs.current)) {
-        hls?.destroy();
-      }
+      for (const hls of Object.values(hlsRefs.current)) hls?.destroy();
       hlsRefs.current = {};
       brollHlsRef.current?.destroy();
       hlsBothRef1.current?.destroy();
@@ -177,27 +167,16 @@ export function VideoPreview({
   }, []);
 
   // ── THE KEY SYNC LOOP ──
-  // Every tick of the audio clock, update ALL cameras using their individual xcorrOffset.
-  // This is exactly what Premiere does — each camera has one formula, always.
   useEffect(() => {
     for (const [cameraId, camera] of Object.entries(cameraRegistry)) {
       const video = videoRefs.current[cameraId];
       if (!video) continue;
-
-      // Each camera's correct position: songTime + xcorrOffset (pre-roll)
       const targetPos = Math.max(0, currentTime + camera.xcorrOffset);
       const drift = Math.abs(video.currentTime - targetPos);
-
-      // During playback, only correct major drift (>1.5s) — let the video run freely
-      // On pause/scrub, snap to exact position
       if (isPlaying) {
-        if (drift > 1.5) {
-          video.currentTime = targetPos;
-        }
+        if (drift > 1.5) video.currentTime = targetPos;
       } else {
-        if (drift > 0.05) {
-          video.currentTime = targetPos;
-        }
+        if (drift > 0.05) video.currentTime = targetPos;
       }
     }
   }, [currentTime, cameraRegistry, isPlaying]);
@@ -206,11 +185,8 @@ export function VideoPreview({
   useEffect(() => {
     for (const video of Object.values(videoRefs.current)) {
       if (!video) continue;
-      if (isPlaying) {
-        video.play().catch(() => {});
-      } else {
-        video.pause();
-      }
+      if (isPlaying) video.play().catch(() => {});
+      else video.pause();
     }
   }, [isPlaying]);
 
@@ -220,10 +196,8 @@ export function VideoPreview({
     prevBrollUrlRef.current = brollUrl;
 
     if (!brollUrl) {
-      if (brollHlsRef.current) {
-        brollHlsRef.current.destroy();
-        brollHlsRef.current = null;
-      }
+      brollHlsRef.current?.destroy();
+      brollHlsRef.current = null;
       if (brollVideoRef.current) brollVideoRef.current.src = "";
       return;
     }
@@ -231,10 +205,8 @@ export function VideoPreview({
     const video = brollVideoRef.current;
     if (!video) return;
 
-    if (brollHlsRef.current) {
-      brollHlsRef.current.destroy();
-      brollHlsRef.current = null;
-    }
+    brollHlsRef.current?.destroy();
+    brollHlsRef.current = null;
 
     if (brollUrl.endsWith(".m3u8") && Hls.isSupported()) {
       const hls = new Hls({ startFragPrefetch: true, maxBufferLength: 8 });
@@ -256,11 +228,9 @@ export function VideoPreview({
   useEffect(() => {
     const video = brollVideoRef.current;
     if (!video || !brollUrl) return;
-
     const posInClip = (currentTime - brollClipStart) + brollSourceOffset;
     const safePos = Math.max(0, posInClip);
     const drift = Math.abs(video.currentTime - safePos);
-
     if (isPlaying) {
       if (drift > 1.5) video.currentTime = safePos;
     } else {
@@ -276,14 +246,12 @@ export function VideoPreview({
     else video.pause();
   }, [isPlaying, brollUrl]);
 
-  // ── Both-format sync (kept for "both" format) ──
+  // ── Both-format sync ──
   const activeClipUrl = activeCameraId ? cameraRegistry[activeCameraId]?.url : brollUrl;
 
   const setupHls = useCallback((video: HTMLVideoElement, url: string, hlsHolder: React.MutableRefObject<Hls | null>) => {
-    if (hlsHolder.current) {
-      hlsHolder.current.destroy();
-      hlsHolder.current = null;
-    }
+    hlsHolder.current?.destroy();
+    hlsHolder.current = null;
     if (url.endsWith(".m3u8") && Hls.isSupported()) {
       const hls = new Hls({ startFragPrefetch: true, maxBufferLength: 8 });
       hls.loadSource(url);
@@ -299,11 +267,8 @@ export function VideoPreview({
     const posInClip = activeCameraId
       ? Math.max(0, songTime + (cameraRegistry[activeCameraId]?.xcorrOffset ?? 0))
       : Math.max(0, (songTime - brollClipStart) + brollSourceOffset);
-
     [bothVideoRef1.current, bothVideoRef2.current].forEach(v => {
-      if (v && Math.abs(v.currentTime - posInClip) > 0.2) {
-        v.currentTime = posInClip;
-      }
+      if (v && Math.abs(v.currentTime - posInClip) > 0.2) v.currentTime = posInClip;
     });
   }, [activeCameraId, cameraRegistry, brollClipStart, brollSourceOffset, activeClipUrl]);
 
@@ -327,54 +292,6 @@ export function VideoPreview({
     };
   }, [activeClipUrl, format, setupHls]);
 
-  // ── Helpers ──
-  function formatTime(s: number) {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${m}:${sec.toString().padStart(2, "0")}`;
-  }
-
-  const getSeekTime = useCallback((clientX: number) => {
-    const bar = seekBarRef.current;
-    if (!bar) return 0;
-    const rect = bar.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    return pct * duration;
-  }, [duration]);
-
-  const handleSeekDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    setIsSeekDragging(true);
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const time = getSeekTime(clientX);
-    onSeek(time);
-    setSeekTooltipTime(time);
-
-    const getX = (ev: MouseEvent | TouchEvent) =>
-      "touches" in ev ? ev.touches[0].clientX : ev.clientX;
-
-    const onMove = (ev: MouseEvent | TouchEvent) => {
-      const t = getSeekTime(getX(ev));
-      onSeek(t);
-      setSeekTooltipTime(t);
-    };
-    const onUp = () => {
-      setIsSeekDragging(false);
-      setSeekTooltipTime(null);
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("touchend", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    window.addEventListener("touchmove", onMove, { passive: false });
-    window.addEventListener("touchend", onUp);
-  }, [getSeekTime, onSeek]);
-
-  const videoFilter = filter !== "none" ? filter : undefined;
-  const staticCropPosition = getSmartCropPosition(faceCrop, format);
-
   // ── Live face tracking crop ──
   const [liveCropX, setLiveCropX] = useState(50);
   const [liveCropY, setLiveCropY] = useState(35);
@@ -387,7 +304,7 @@ export function VideoPreview({
       : (currentTime - clipStart) + sourceOffset;
     const { x, y } = getFacePositionAtTime(faceKeyframes, posInClip);
 
-    if (format === '9:16' || format === 'both') {
+    if (format === "9:16" || format === "both") {
       const containerAspect = 9 / 16;
       const videoAspect = 16 / 9;
       const r = containerAspect / videoAspect;
@@ -401,128 +318,57 @@ export function VideoPreview({
     }
   }, [currentTime, faceKeyframes, hasKeyframes, clipStart, sourceOffset, format, activeCameraId, cameraRegistry]);
 
-  const cropPosition = hasKeyframes
-    ? `${liveCropX}% ${liveCropY}%`
-    : staticCropPosition;
+  const staticCropPosition = getSmartCropPosition(faceCrop, format);
+  const cropPosition = hasKeyframes ? `${liveCropX}% ${liveCropY}%` : staticCropPosition;
 
-  const renderFaceBadge = () => {
-    // Determine tracking source from live keyframes
-    let trackingLabel = "CENTER CROP";
-    if (hasKeyframes && faceKeyframes) {
-      const posInClip = activeCameraId
-        ? Math.max(0, currentTime + (cameraRegistry[activeCameraId]?.xcorrOffset ?? 0))
-        : (currentTime - clipStart) + sourceOffset;
-      const result = getFacePositionAtTime(faceKeyframes, posInClip);
-      const source = (result as any).trackingSource;
-      if (source === 'body') trackingLabel = "BODY TRACKING";
-      else if (source === 'face') trackingLabel = "FACE TRACKING";
-      else if (source === 'held') trackingLabel = "TRACKING HELD";
-    } else if (faceCrop?.detected) {
-      trackingLabel = "FACE DETECTED";
-    }
-
-    return (
-      <div className="absolute bottom-2 left-3 bg-black/60 rounded px-1.5 py-0.5 flex items-center gap-1 z-10">
-        <div
-          className="w-[5px] h-[5px] rounded-full"
-          style={{ background: (hasKeyframes || faceCrop?.detected) ? "hsl(var(--primary))" : "hsl(var(--foreground) / 0.3)" }}
-        />
-        <span className="text-[8px] font-mono text-foreground/70 tracking-wider">
-          {trackingLabel}
-        </span>
-      </div>
-    );
-  };
-
-  const renderWatermark = () => {
-    if (!showWatermark) return null;
-    return (
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-        <span
-          className="font-mono tracking-[6px] select-none"
-          style={{
-            fontSize: 28,
-            color: "hsla(0, 0%, 100%, 0.15)",
-            textShadow: "0 2px 8px hsla(0, 0%, 0%, 0.4)",
-            transform: "rotate(-18deg)",
-            letterSpacing: 6,
-            fontWeight: 700,
-          }}
-        >
-          ROTOVIDE
-        </span>
-      </div>
-    );
-  };
-
-  const cameraVideoStyle = (cameraId: string): React.CSSProperties => ({
-    position: 'absolute',
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    filter: videoFilter,
-    objectPosition: cropPosition && cropPosition !== 'center' ? cropPosition : undefined,
-    transition: hasKeyframes ? 'object-position 0.4s ease-out' : undefined,
-    // INSTANT CUT: just opacity — no seeking, no reloading
-    opacity: cameraId === activeCameraId ? 1 : 0,
-    pointerEvents: cameraId === activeCameraId ? 'auto' as const : 'none' as const,
-  });
-
+  const videoFilter = filter !== "none" ? filter : undefined;
   const hasAnyCameraOrBroll = Object.keys(cameraRegistry).length > 0 || brollUrl;
 
-  // ── Multicam render: one <video> per camera, all playing simultaneously ──
+  const overlayProps = { hasKeyframes: !!hasKeyframes, faceCrop, faceKeyframes, currentTime, activeCameraId, cameraRegistry, clipStart, sourceOffset };
+
+  // ── Multicam render ──
   const renderVideo = (showFaceBadge: boolean, cropPos: string) => {
     if (hasAnyCameraOrBroll && !isImageOnly) {
       const showBroll = brollUrl && !activeCameraId;
       return (
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          {/* Performance cameras — always mounted, always playing */}
+        <div style={{ position: "relative", width: "100%", height: "100%" }}>
           {Object.keys(cameraRegistry).map((cameraId) => (
             <video
               key={cameraId}
               ref={el => { videoRefs.current[cameraId] = el; }}
-              style={cameraVideoStyle(cameraId)}
-              playsInline
-              muted
+              style={{
+                position: "absolute", inset: 0, width: "100%", height: "100%",
+                objectFit: "cover", filter: videoFilter,
+                objectPosition: cropPos && cropPos !== "center" ? cropPos : undefined,
+                transition: hasKeyframes ? "object-position 0.4s ease-out" : undefined,
+                opacity: cameraId === activeCameraId ? 1 : 0,
+                pointerEvents: cameraId === activeCameraId ? "auto" : "none",
+              }}
+              playsInline muted
             />
           ))}
-
-          {/* B-roll overlay — shown only when no performance camera is active */}
           <video
             ref={brollVideoRef}
             style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              filter: videoFilter,
-              objectPosition: cropPos && cropPos !== 'center' ? cropPos : undefined,
+              position: "absolute", inset: 0, width: "100%", height: "100%",
+              objectFit: "cover", filter: videoFilter,
+              objectPosition: cropPos && cropPos !== "center" ? cropPos : undefined,
               opacity: showBroll ? 1 : 0,
-              pointerEvents: showBroll ? 'auto' as const : 'none' as const,
-              transition: hasKeyframes && showBroll ? 'object-position 0.4s ease-out' : 'none',
+              pointerEvents: showBroll ? "auto" : "none",
+              transition: hasKeyframes && showBroll ? "object-position 0.4s ease-out" : "none",
             }}
-            playsInline
-            muted
+            playsInline muted
           />
-
-          {/* Loading spinner until cameras are ready */}
           {!camerasReady && Object.keys(cameraRegistry).length > 0 && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-30">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
           )}
-
-          {showFaceBadge && renderFaceBadge()}
-          {renderWatermark()}
+          {showFaceBadge && <FaceTrackingBadge {...overlayProps} />}
+          <WatermarkOverlay showWatermark={showWatermark} />
           <LyricsCaptionOverlay
-            words={lyricsWords}
-            currentTime={currentTime}
-            visible={lyricsVisible}
-            style={lyricsStyle}
-            size={lyricsSize}
-            position={lyricsPosition}
+            words={lyricsWords} currentTime={currentTime} visible={lyricsVisible}
+            style={lyricsStyle} size={lyricsSize} position={lyricsPosition}
           />
         </div>
       );
@@ -535,8 +381,8 @@ export function VideoPreview({
           <Badge className="absolute top-2 left-1/2 -translate-x-1/2 bg-warning/80 text-warning-foreground text-[10px] whitespace-nowrap z-10">
             Still frame — original uploading
           </Badge>
-          {showFaceBadge && renderFaceBadge()}
-          {renderWatermark()}
+          {showFaceBadge && <FaceTrackingBadge {...overlayProps} />}
+          <WatermarkOverlay showWatermark={showWatermark} />
         </>
       );
     }
@@ -567,7 +413,7 @@ export function VideoPreview({
       return (
         <>
           <video ref={vRef} className="w-full h-full object-cover" style={style} muted playsInline />
-          {showFace && renderFaceBadge()}
+          {showFace && <FaceTrackingBadge {...overlayProps} />}
         </>
       );
     }
@@ -578,17 +424,16 @@ export function VideoPreview({
           <Badge className="absolute top-2 left-1/2 -translate-x-1/2 bg-warning/80 text-warning-foreground text-[10px] whitespace-nowrap z-10">
             Still frame
           </Badge>
-          {showFace && renderFaceBadge()}
+          {showFace && <FaceTrackingBadge {...overlayProps} />}
         </>
       );
     }
     return (
       <div className="w-full h-full flex items-center justify-center">
-        {clipStatus === "loading" ? (
-          <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
-        ) : (
-          <Film className="w-8 h-8 text-muted-foreground/20" />
-        )}
+        {clipStatus === "loading"
+          ? <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+          : <Film className="w-8 h-8 text-muted-foreground/20" />
+        }
       </div>
     );
   };
@@ -643,13 +488,11 @@ export function VideoPreview({
         style={containerStyle}
       >
         {renderVideo(format === "9:16", cropPosition)}
-
         {clipStatus === "proxy" && !isImageOnly && activeClipUrl && (
           <Badge className="absolute top-2 left-1/2 -translate-x-1/2 bg-warning/80 text-warning-foreground text-[10px] whitespace-nowrap z-10">
             Preview quality — full upload in progress
           </Badge>
         )}
-
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent h-20 pointer-events-none" />
       </div>
     </div>
@@ -658,57 +501,14 @@ export function VideoPreview({
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", overflow: "hidden" }}>
       {format === "both" ? renderBothPreview() : renderSinglePreview()}
-
-      {/* Transport controls */}
-      <div style={{ flexShrink: 0, position: "relative", zIndex: 10 }} className="mt-1 space-y-2 px-1">
-        <div
-          ref={seekBarRef}
-          className="relative cursor-pointer group"
-          style={{ padding: isMobile ? "19px 0" : "8px 0" }}
-          onMouseDown={handleSeekDown}
-          onTouchStart={handleSeekDown}
-        >
-          <div className="h-1.5 rounded-full relative" style={{ background: "hsl(0 0% 20%)" }}>
-            <div
-              className="absolute inset-y-0 left-0 rounded-full"
-              style={{ width: `${progressPct}%`, background: "hsl(72 100% 64%)" }}
-            />
-          </div>
-          <div
-            className="absolute top-1/2 -translate-y-1/2 rounded-full"
-            style={{
-              left: `${progressPct}%`,
-              transform: `translate(-50%, -50%)`,
-              width: 20, height: 20,
-              background: "hsl(72 100% 64%)",
-              boxShadow: isSeekDragging ? "0 0 8px hsl(72 100% 64% / 0.5)" : "none",
-              transition: isSeekDragging ? "none" : "box-shadow 0.15s",
-            }}
-          />
-          {seekTooltipTime !== null && (
-            <div
-              className="absolute pointer-events-none"
-              style={{ left: `${(seekTooltipTime / duration) * 100}%`, top: -28, transform: "translateX(-50%)" }}
-            >
-              <div
-                className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap"
-                style={{ background: "hsl(0 0% 10.2%)", color: "hsl(72 100% 64%)", fontFamily: "'Space Mono', monospace" }}
-              >
-                {formatTime(seekTooltipTime)} / {formatTime(duration)}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between">
-          <button onClick={onPlayToggle} className="text-foreground hover:text-primary transition-default p-1" aria-label={isPlaying ? "Pause" : "Play"}>
-            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-          </button>
-          <span className="text-[11px] font-mono text-foreground/60 tabular-nums">
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </span>
-        </div>
-      </div>
+      <TransportControls
+        currentTime={currentTime}
+        duration={duration}
+        isPlaying={isPlaying}
+        onPlayToggle={onPlayToggle}
+        onSeek={onSeek}
+        isMobile={isMobile}
+      />
     </div>
   );
 }
