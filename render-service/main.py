@@ -46,6 +46,49 @@ def get_lut_path(color_grade: str) -> str | None:
     return path
 
 
+def _f(k, key, default=0.0):
+    """Extract a scalar float from a keyframe value that may be a list."""
+    v = k.get(key, default)
+    if isinstance(v, (list, tuple)):
+        return float(v[0]) if v else default
+    return float(v) if v is not None else default
+
+
+def get_face_position_at_time(keyframes: list, target_time: float) -> float:
+    """Interpolate face X position at a specific timestamp from keyframe data."""
+    if not keyframes:
+        return 0.5
+    valid = [k for k in keyframes if isinstance(k, dict)]
+    if not valid:
+        return 0.5
+
+    def _kf_t(k):
+        return _f(k, "t", None) if "t" in k else _f(k, "timestamp", 0.0)
+
+    before = after = None
+    for kf in valid:
+        t = _kf_t(kf)
+        if t is None:
+            continue
+        if t <= target_time:
+            before = kf
+        if t >= target_time and after is None:
+            after = kf
+            break
+
+    if before is None:
+        before = valid[0]
+    if after is None:
+        after = valid[-1]
+
+    t_b = _kf_t(before) or 0.0
+    t_a = _kf_t(after) or 0.0
+    if t_a == t_b:
+        return _f(before, "x", 0.5)
+    ratio = max(0.0, min(1.0, (target_time - t_b) / (t_a - t_b)))
+    return _f(before, "x", 0.5) + (_f(after, "x", 0.5) - _f(before, "x", 0.5)) * ratio
+
+
 def build_ffmpeg_segment_cmd(
     src_path: str,
     seg_path: str,
@@ -72,37 +115,14 @@ def build_ffmpeg_segment_cmd(
     base_filters = []
 
     if export_format == "9:16":
-        # Face-tracked crop
+        # Face-tracked crop — interpolate position at segment start time
         if face_keyframes:
-            def _kf_t(k):
-                t = k.get("t", 0)
-                return float(t[0]) if isinstance(t, (list, tuple)) else float(t) if t is not None else 0.0
-
-            valid_kfs = [k for k in face_keyframes if isinstance(k, dict)]
-            clip_start = start
-            clip_end = start + duration
-            segment_kfs = [k for k in valid_kfs if clip_start <= _kf_t(k) <= clip_end]
-            if not segment_kfs and valid_kfs:
-                segment_kfs = [min(valid_kfs, key=lambda k: abs(_kf_t(k) - clip_start))]
-
-            if segment_kfs:
-                def _f(k, key, default):
-                    """Extract a scalar float from a keyframe value that may be a list."""
-                    v = k.get(key, default)
-                    if isinstance(v, (list, tuple)):
-                        return float(v[0]) if v else default
-                    return float(v) if v is not None else default
-
-                total_weight = sum(_f(k, "confidence", 0.5) for k in segment_kfs) or len(segment_kfs)
-                face_x = sum(_f(k, "x", 0.5) * _f(k, "confidence", 0.5) for k in segment_kfs) / total_weight
-                face_x = max(0.0, min(1.0, face_x))
-                crop = (
-                    f"crop=trunc(ih*9/16):ih:"
-                    f"max(0\\,min(iw-trunc(ih*9/16)\\,"
-                    f"trunc(iw*{face_x:.4f}-ih*9/32))):0"
-                )
-            else:
-                crop = "crop=trunc(ih*9/16):ih:trunc((iw-trunc(ih*9/16))/2):0"
+            face_x = get_face_position_at_time(face_keyframes, start)
+            crop = (
+                f"crop=trunc(ih*9/16):ih:"
+                f"max(0\\,min(iw-trunc(ih*9/16)\\,"
+                f"trunc(iw*{face_x:.4f}-ih*9/32))):0"
+            )
         else:
             crop = "crop=trunc(ih*9/16):ih:trunc((iw-trunc(ih*9/16))/2):0"
 
@@ -580,6 +600,8 @@ def sync_clips():
                     db_update("media_files", {
                         "suggested_timeline_position": pre_roll,
                         "audio_similarity_score": confidence,
+                        "sync_offset_samples": int(best_lag),
+                        "sync_confidence": confidence,
                     }, [{"op": "eq", "column": "id", "value": clip_id}])
 
                     results.append({"clip_id": clip_id, "pre_roll": pre_roll, "confidence": confidence})

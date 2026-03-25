@@ -15,6 +15,7 @@ import { FaceTrackingBadge, WatermarkOverlay } from "./video-preview/VideoOverla
 export interface CameraEntry {
   url: string;
   xcorrOffset: number;
+  syncConfidence?: number;
 }
 
 interface VideoPreviewProps {
@@ -297,6 +298,11 @@ export function VideoPreview({
   const [liveCropY, setLiveCropY] = useState(35);
   const hasKeyframes = faceKeyframes && faceKeyframes.length > 0;
 
+  // Camera-switch transition: hold previous crop position and ease into new one
+  const prevActiveCameraRef = useRef<string | null>(null);
+  const switchFromCropRef = useRef<{ x: number; y: number } | null>(null);
+  const switchStartMsRef = useRef<number>(0);
+
   useEffect(() => {
     if (!hasKeyframes || !faceKeyframes) return;
     const posInClip = activeCameraId
@@ -304,17 +310,37 @@ export function VideoPreview({
       : (currentTime - clipStart) + sourceOffset;
     const { x, y } = getFacePositionAtTime(faceKeyframes, posInClip);
 
+    let nextX: number;
+    let nextY: number;
     if (format === "9:16" || format === "both") {
       const containerAspect = 9 / 16;
       const videoAspect = 16 / 9;
       const r = containerAspect / videoAspect;
-      const objectX = Math.max(0, Math.min(100, ((x - r / 2) / (1 - r)) * 100));
-      const objectY = Math.max(0, Math.min(100, y * 100));
-      setLiveCropX(objectX);
-      setLiveCropY(objectY);
+      nextX = Math.max(0, Math.min(100, ((x - r / 2) / (1 - r)) * 100));
+      nextY = Math.max(0, Math.min(100, y * 100));
     } else {
-      setLiveCropX(Math.round(x * 100));
-      setLiveCropY(Math.round(y * 100));
+      nextX = Math.round(x * 100);
+      nextY = Math.round(y * 100);
+    }
+
+    // On camera switch, snapshot crop and blend over 200ms to suppress pop
+    if (prevActiveCameraRef.current !== activeCameraId) {
+      switchFromCropRef.current = { x: liveCropX, y: liveCropY };
+      switchStartMsRef.current = performance.now();
+      prevActiveCameraRef.current = activeCameraId;
+    }
+
+    const from = switchFromCropRef.current;
+    if (from) {
+      const elapsed = performance.now() - switchStartMsRef.current;
+      const t = Math.min(elapsed / 200, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out-cubic
+      setLiveCropX(from.x + (nextX - from.x) * eased);
+      setLiveCropY(from.y + (nextY - from.y) * eased);
+      if (t >= 1) switchFromCropRef.current = null;
+    } else {
+      setLiveCropX(nextX);
+      setLiveCropY(nextY);
     }
   }, [currentTime, faceKeyframes, hasKeyframes, clipStart, sourceOffset, format, activeCameraId, cameraRegistry]);
 
