@@ -29,6 +29,7 @@ interface ExportPanelProps {
   bangerStart?: number;
   bangerEnd?: number;
   hasLyrics?: boolean;
+  manifestId?: string;
 }
 
 export function ExportPanel({
@@ -43,6 +44,7 @@ export function ExportPanel({
   bangerStart,
   bangerEnd,
   hasLyrics,
+  manifestId,
 }: ExportPanelProps) {
   // Format selection
   const [selectedFormats, setSelectedFormats] = useState<ExportFormat[]>(["9:16", "16:9"]);
@@ -62,6 +64,11 @@ export function ExportPanel({
   const [activeExportId, setActiveExportId] = useState<string | null>(null);
   // Track last seen status to avoid duplicate toasts from realtime + polling both firing
   const lastStatusRef = useRef<string | null>(null);
+
+  // Granular progress from Railway (Phase 4)
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [progressStep, setProgressStep] = useState("");
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
 
   // Shared handler for export status changes (used by both realtime and polling)
   const applyStatusUpdate = useCallback((status: string, url?: string | null) => {
@@ -87,6 +94,42 @@ export function ExportPanel({
       });
       setExporting(false);
       toast.error("Render failed — please try again.");
+    }
+  }, []);
+
+  // Parse granular progress from Railway (Phase 4)
+  const applyProgressUpdate = useCallback((progress: Record<string, unknown> | null) => {
+    if (!progress || typeof progress !== "object") return;
+    const percent = (typeof progress.percent === "number" ? progress.percent : 0);
+    const eta = (typeof progress.eta_seconds === "number" ? progress.eta_seconds : null);
+    const step = (typeof progress.step === "string" ? progress.step : "");
+
+    setProgressPercent(percent);
+    setEtaSeconds(eta);
+
+    // Map Railway pipeline steps to render step indices
+    const STEP_MAP: Record<string, number> = {
+      rendering_segments: 2,
+      concatenating: 3,
+      mixing_audio: 3,
+      uploading: 3,
+    };
+    const activeStepIdx = STEP_MAP[step] ?? 2;
+    setRenderSteps(prev => prev.map((s, i) =>
+      i < activeStepIdx ? { ...s, status: "done" as const } :
+      i === activeStepIdx ? { ...s, status: "active" as const } : s
+    ));
+
+    if (step === "rendering_segments") {
+      const done = (typeof progress.segments_done === "number" ? progress.segments_done : 0);
+      const total = (typeof progress.segments_total === "number" ? progress.segments_total : 0);
+      setProgressStep(total > 0 ? `Building video... (${done}/${total} clips)` : "Building video...");
+    } else if (step === "concatenating") {
+      setProgressStep("Joining clips...");
+    } else if (step === "mixing_audio") {
+      setProgressStep("Mixing audio...");
+    } else if (step === "uploading") {
+      setProgressStep("Uploading to cloud...");
     }
   }, []);
 
@@ -140,6 +183,7 @@ export function ExportPanel({
         },
         (payload) => {
           applyStatusUpdate(payload.new?.status, payload.new?.download_url);
+          applyProgressUpdate(payload.new?.progress as Record<string, unknown> | null);
         }
       )
       .subscribe();
@@ -147,7 +191,7 @@ export function ExportPanel({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeExportId, applyStatusUpdate]);
+  }, [activeExportId, applyStatusUpdate, applyProgressUpdate]);
 
   // Polling fallback — catches updates if the realtime subscription drops or the
   // panel was closed and reopened while a render was in flight
@@ -157,13 +201,14 @@ export function ExportPanel({
     const interval = setInterval(async () => {
       const { data } = await supabase
         .from("exports")
-        .select("status, download_url")
+        .select("status, download_url, progress")
         .eq("id", activeExportId)
         .single();
       if (data) {
         applyStatusUpdate(data.status, data.download_url);
+        applyProgressUpdate(data.progress as Record<string, unknown> | null);
       }
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [activeExportId, exporting, applyStatusUpdate]);
@@ -235,6 +280,7 @@ export function ExportPanel({
           status: "queued",
           watermarked: shouldWatermark,
           credits_used: 1,
+          manifest_id: manifestId || null,
           settings: {
             resolution,
             format: fmt,
@@ -273,7 +319,7 @@ export function ExportPanel({
           // Trigger real render via edge function
           try {
             await supabase.functions.invoke("trigger-render", {
-              body: { export_id: exportRecord.id, project_id: projectId },
+              body: { export_id: exportRecord.id, project_id: projectId, manifest_id: manifestId || null },
             });
             console.log("Render triggered for export:", exportRecord.id);
           } catch (triggerErr) {
@@ -588,6 +634,36 @@ export function ExportPanel({
                     </span>
                   </div>
                 ))}
+
+                {/* Granular progress bar — Phase 4 */}
+                {exporting && progressPercent > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {/* Bar */}
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: "hsl(0 0% 12%)" }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-700 ease-out"
+                        style={{
+                          width: `${Math.min(progressPercent, 100)}%`,
+                          background: "hsl(var(--primary))",
+                        }}
+                      />
+                    </div>
+                    {/* Label row */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-mono text-muted-foreground">
+                        {progressStep || "Processing..."}
+                      </span>
+                      <span className="text-[11px] font-mono text-primary">
+                        {progressPercent}%
+                        {etaSeconds != null && etaSeconds > 0 && (
+                          <span className="text-muted-foreground ml-1.5">
+                            ~{etaSeconds < 60 ? `${etaSeconds}s` : `${Math.ceil(etaSeconds / 60)}m`}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Download button when render is complete */}
                 {downloadUrl && !exporting && renderSteps.every(s => s.status === "done") && (

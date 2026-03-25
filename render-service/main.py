@@ -205,6 +205,47 @@ def download_file(url: str, dest_path: str):
             f.write(chunk)
 
 
+def update_progress(export_id: str, step: str, segments_done: int = 0,
+                    segments_total: int = 0, started_at: str = None):
+    """Report granular render progress to the DB for real-time UI updates."""
+    import time
+    eta = 0
+    if started_at and segments_done > 0 and segments_total > 0:
+        from datetime import datetime, timezone
+        try:
+            start = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+            elapsed = (datetime.now(timezone.utc) - start).total_seconds()
+            rate = elapsed / segments_done
+            remaining = segments_total - segments_done
+            eta = max(0, int(rate * remaining))
+        except Exception:
+            eta = 0
+
+    percent = 0
+    if step == "rendering_segments" and segments_total > 0:
+        percent = int((segments_done / segments_total) * 80)
+    elif step == "concatenating":
+        percent = 82
+    elif step == "mixing_audio":
+        percent = 88
+    elif step == "uploading":
+        percent = 95
+
+    progress = {
+        "step": step,
+        "segments_done": segments_done,
+        "segments_total": segments_total,
+        "percent": percent,
+        "eta_seconds": eta,
+        "started_at": started_at,
+    }
+    try:
+        db_update("exports", {"progress": json.dumps(progress)},
+                  [{"op": "eq", "column": "id", "value": export_id}])
+    except Exception as e:
+        print(f"Progress update failed (non-fatal): {e}", flush=True)
+
+
 def upload_to_mux(file_path: str) -> dict:
     res = requests.post(
         "https://api.mux.com/video/v1/uploads",
@@ -228,27 +269,51 @@ def health():
     return jsonify({"status": "ok", "luts_loaded": lut_count})
 
 
-def do_render(export_id: str, project_id: str):
+def do_render(export_id: str, project_id: str, manifest_id: str | None = None):
     """Run the full render pipeline. Called in a background thread."""
     import traceback
     print(f"Render queued for semaphore: export_id={export_id}", flush=True)
 
     with _render_semaphore:
-        print(f"Render started: export_id={export_id} project_id={project_id}", flush=True)
-        _do_render_inner(export_id, project_id)
+        print(f"Render started: export_id={export_id} project_id={project_id} manifest_id={manifest_id}", flush=True)
+        _do_render_inner(export_id, project_id, manifest_id)
 
 
-def _do_render_inner(export_id: str, project_id: str):
+def _do_render_inner(export_id: str, project_id: str, manifest_id: str | None = None):
     """Inner render logic — runs one at a time, gated by _render_semaphore."""
     import traceback
+    from datetime import datetime, timezone
     try:
         db_update("exports", {"status": "processing"}, [{"op": "eq", "column": "id", "value": export_id}])
+        render_start = datetime.now(timezone.utc).isoformat()
 
         project = db_select("projects", "*", [{"op": "eq", "column": "id", "value": project_id}], single=True)
         timeline_data = project["timeline_data"]
         color_grade = project.get("color_grade", "none")
         color_grade_intensity = float(project.get("color_grade_intensity", 1.0))
         output_format = project.get("format", "9:16")
+
+        # ── Look up manifest for per-clip enrichment (Phase 4) ──
+        manifest = None
+        manifest_clip_map = {}
+        if manifest_id:
+            try:
+                manifest_row = db_select("edit_manifests", "manifest",
+                    [{"op": "eq", "column": "id", "value": manifest_id}], single=True)
+                manifest = manifest_row.get("manifest") if manifest_row else None
+                if manifest:
+                    tracks = manifest.get("timeline", {}).get("tracks", [])
+                    for track in tracks:
+                        if track.get("kind") != "video":
+                            continue
+                        for mc in track.get("clips", []):
+                            key = round(mc.get("timeline_position", -1), 3)
+                            manifest_clip_map[key] = mc
+                    print(f"Loaded manifest {manifest_id}: {len(manifest_clip_map)} clips indexed", flush=True)
+            except Exception as me:
+                print(f"Warning: Failed to load manifest {manifest_id}: {me}. Using timeline_data only.", flush=True)
+                manifest = None
+                manifest_clip_map = {}
 
         export_record = db_select("exports", "*", [{"op": "eq", "column": "id", "value": export_id}], single=True)
         settings = export_record.get("settings", {}) or {}
@@ -315,6 +380,9 @@ def _do_render_inner(export_id: str, project_id: str):
                 downloaded_clips[clip_id] = clip_path
 
             # Render each segment
+            total_segments = len(timeline_clips)
+            update_progress(export_id, "rendering_segments", 0, total_segments, render_start)
+
             segment_paths = []
             for i, tc in enumerate(timeline_clips):
                 clip_id = tc["clip_id"]
@@ -332,6 +400,20 @@ def _do_render_inner(export_id: str, project_id: str):
                 media = media_files.get(clip_id, {})
                 face_keyframes = media.get("face_keyframes", [])
 
+                # ── Manifest enrichment (Phase 4) ──
+                clip_intensity = color_grade_intensity
+                manifest_clip = manifest_clip_map.get(round(tc.get("start", 0), 3), {})
+                if manifest_clip:
+                    # Per-clip face keyframes from manifest
+                    mf_face_crop = manifest_clip.get("face_crop", {})
+                    if mf_face_crop.get("keyframes"):
+                        face_keyframes = mf_face_crop["keyframes"]
+                    # Per-clip color grade intensity from manifest effects
+                    for eff in manifest_clip.get("effects", []):
+                        if eff.get("type") == "color_grade":
+                            clip_intensity = float(eff.get("intensity", color_grade_intensity))
+                            break
+
                 cmd = build_ffmpeg_segment_cmd(
                     src_path=downloaded_clips[clip_id],
                     seg_path=seg_path,
@@ -342,7 +424,7 @@ def _do_render_inner(export_id: str, project_id: str):
                     export_format=export_format,
                     face_keyframes=face_keyframes,
                     lut_path=lut_path,
-                    intensity=color_grade_intensity,
+                    intensity=clip_intensity,
                 )
 
                 print(f"[FFmpeg] segment {i}: {' '.join(cmd)}", flush=True)
@@ -351,11 +433,13 @@ def _do_render_inner(export_id: str, project_id: str):
                     print(f"[FFmpeg] FAILED segment {i} (exit {result.returncode}):\n{result.stderr}", flush=True)
                     continue
                 segment_paths.append(seg_path)
+                update_progress(export_id, "rendering_segments", i + 1, total_segments, render_start)
 
             if not segment_paths:
                 raise Exception("No segments rendered successfully")
 
             # Concatenate segments
+            update_progress(export_id, "concatenating", total_segments, total_segments, render_start)
             print(f"[Concat] Concatenating {len(segment_paths)} segments...", flush=True)
             concat_list_path = os.path.join(tmpdir, "concat.txt")
             with open(concat_list_path, "w") as f:
@@ -375,6 +459,7 @@ def _do_render_inner(export_id: str, project_id: str):
             print(f"[Concat] done — {os.path.getsize(concat_path) // 1024} KB", flush=True)
 
             # Mix audio
+            update_progress(export_id, "mixing_audio", total_segments, total_segments, render_start)
             final_path = os.path.join(tmpdir, "final.mp4")
 
             # Watermark filter if needed
@@ -407,6 +492,7 @@ def _do_render_inner(export_id: str, project_id: str):
                 raise Exception(f"Audio mix failed (exit {result.returncode}):\n{result.stderr}")
             print(f"[AudioMix] done — {os.path.getsize(final_path) // 1024} KB", flush=True)
 
+            update_progress(export_id, "uploading", total_segments, total_segments, render_start)
             print("Uploading final video to Mux...", flush=True)
             mux_result = upload_to_mux(final_path)
             upload_id = mux_result["upload_id"]
@@ -433,15 +519,16 @@ def render():
     body = request.get_json()
     export_id = body.get("export_id")
     project_id = body.get("project_id")
+    manifest_id = body.get("manifest_id")  # optional, Phase 4
     if not export_id or not project_id:
         return jsonify({"error": "Missing export_id or project_id"}), 400
 
     # Respond 202 immediately so the Supabase edge function doesn't time out.
     # The actual render runs in a daemon thread — if the service restarts mid-render
     # the export status will be stuck in "processing" and needs a manual reset.
-    thread = threading.Thread(target=do_render, args=(export_id, project_id), daemon=True)
+    thread = threading.Thread(target=do_render, args=(export_id, project_id, manifest_id), daemon=True)
     thread.start()
-    print(f"Render thread started: export_id={export_id}", flush=True)
+    print(f"Render thread started: export_id={export_id} manifest_id={manifest_id}", flush=True)
     return jsonify({"success": True, "message": "Render started"}), 202
 
 

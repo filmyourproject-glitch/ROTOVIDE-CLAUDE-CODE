@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, CheckCircle, X, Sparkles } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Send, Loader2, CheckCircle, X, Sparkles, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Section, TimelineClip } from "@/types";
 import type { StylePreset } from "@/types";
+import type { EditManifest } from "@/lib/editManifest";
+import { getManifestStats } from "@/lib/manifestInterpreter";
 
 interface Placement {
   beat_index: number;
@@ -17,11 +19,13 @@ interface ChatMessage {
   role: "user" | "director";
   content: string;
   placements?: Placement[];
+  manifest?: EditManifest;
 }
 
 interface DirectorChatProps {
   open: boolean;
   onClose: () => void;
+  projectId: string;
   bpm: number;
   songDuration: number;
   stylePreset: StylePreset;
@@ -29,11 +33,13 @@ interface DirectorChatProps {
   clips: TimelineClip[];
   beats: number[];
   onApplyPlacements: (placements: Placement[]) => void;
+  onApplyManifest?: (manifest: EditManifest) => void;
 }
 
 export function DirectorChat({
   open,
   onClose,
+  projectId,
   bpm,
   songDuration,
   stylePreset,
@@ -41,18 +47,173 @@ export function DirectorChat({
   clips,
   beats,
   onApplyPlacements,
+  onApplyManifest,
 }: DirectorChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Phase 5: Video indexing status
+  const [indexingStatus, setIndexingStatus] = useState<
+    "idle" | "checking" | "indexing" | "ready"
+  >("idle");
+  const [indexingProgress, setIndexingProgress] = useState({ total: 0, ready: 0 });
+  const greetingSent = useRef(false);
+
+  // Phase 5: Check + trigger video indexing when chat opens
   useEffect(() => {
-    if (open && messages.length === 0) {
-      setMessages([{
+    if (!open || !projectId) return;
+
+    let cancelled = false;
+    setIndexingStatus("checking");
+
+    (async () => {
+      // Get all video media_files for this project (exclude songs)
+      const { data: mediaFiles } = await supabase
+        .from("media_files")
+        .select("id, file_type, mux_playback_id")
+        .eq("project_id", projectId)
+        .neq("file_type", "song")
+        .is("deleted_at", null);
+
+      if (cancelled || !mediaFiles?.length) {
+        setIndexingStatus("ready");
+        setIndexingProgress({ total: 0, ready: 0 });
+        return;
+      }
+
+      // Only consider clips that have a Mux playback ID (upload complete)
+      const videoFileIds = mediaFiles
+        .filter((f) => f.mux_playback_id)
+        .map((f) => f.id);
+
+      if (videoFileIds.length === 0) {
+        setIndexingStatus("ready");
+        setIndexingProgress({ total: 0, ready: 0 });
+        return;
+      }
+
+      // Check existing indexes
+      const { data: indexes } = await supabase
+        .from("video_indexes")
+        .select("media_file_id, status")
+        .eq("project_id", projectId);
+
+      const indexMap = new Map(
+        (indexes ?? []).map((i: { media_file_id: string; status: string }) => [
+          i.media_file_id,
+          i.status,
+        ])
+      );
+
+      const needsIndexing = videoFileIds.filter(
+        (id) =>
+          !indexMap.has(id) ||
+          indexMap.get(id) === "pending" ||
+          indexMap.get(id) === "failed"
+      );
+      const readyCount = videoFileIds.filter(
+        (id) => indexMap.get(id) === "ready"
+      ).length;
+
+      setIndexingProgress({ total: videoFileIds.length, ready: readyCount });
+
+      if (needsIndexing.length === 0) {
+        setIndexingStatus("ready");
+        return;
+      }
+
+      if (cancelled) return;
+      setIndexingStatus("indexing");
+
+      // Trigger indexing for unindexed clips (non-blocking — results come via Realtime)
+      try {
+        await supabase.functions.invoke("index-video", {
+          body: { media_file_ids: needsIndexing },
+        });
+      } catch (err) {
+        console.error("[DirectorChat] Video indexing trigger failed:", err);
+        // Don't block chat — just proceed without full visual context
+        setIndexingStatus("ready");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId]);
+
+  // Phase 5: Realtime subscription for indexing progress
+  useEffect(() => {
+    if (indexingStatus !== "indexing" || !projectId) return;
+
+    const channel = supabase
+      .channel(`video-indexes-${projectId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "video_indexes",
+          filter: `project_id=eq.${projectId}`,
+        },
+        (payload) => {
+          const newStatus = (payload.new as { status?: string })?.status;
+          if (newStatus === "ready") {
+            setIndexingProgress((prev) => ({
+              ...prev,
+              ready: prev.ready + 1,
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [indexingStatus, projectId]);
+
+  // Phase 5: Auto-transition to "ready" when all clips indexed
+  useEffect(() => {
+    if (
+      indexingStatus === "indexing" &&
+      indexingProgress.total > 0 &&
+      indexingProgress.ready >= indexingProgress.total
+    ) {
+      setIndexingStatus("ready");
+    }
+  }, [indexingStatus, indexingProgress]);
+
+  // Greeting message — updated to reflect visual awareness
+  useEffect(() => {
+    if (!open || greetingSent.current) return;
+
+    // Wait until indexing status resolves from "checking"
+    if (indexingStatus === "checking" || indexingStatus === "idle") return;
+
+    greetingSent.current = true;
+
+    const perfCount = clips.filter((c) => c.type === "performance").length;
+    const brollCount = clips.filter((c) => c.type === "broll").length;
+    const visualNote =
+      indexingStatus === "ready" && indexingProgress.total > 0
+        ? ` I've analyzed your footage and can reference specific shots, outfits, and locations.`
+        : "";
+
+    setMessages([
+      {
         role: "director",
-        content: `Ready to direct. This track is ${bpm} BPM with ${clips.filter(c => c.type === "performance").length} performance clips and ${clips.filter(c => c.type === "broll").length} B-roll clips.\n\nTell me how you want the video to feel — I'll rearrange cuts to match your vision.`,
-      }]);
+        content: `Ready to direct. This track is ${bpm} BPM with ${perfCount} performance clips and ${brollCount} B-roll clips.${visualNote}\n\nTell me how you want the video to feel — I'll rearrange cuts to match your vision.`,
+      },
+    ]);
+  }, [open, indexingStatus, indexingProgress.total, bpm, clips]);
+
+  // Reset greeting flag when chat closes
+  useEffect(() => {
+    if (!open) {
+      greetingSent.current = false;
     }
   }, [open]);
 
@@ -65,12 +226,32 @@ export function DirectorChat({
     if (!msg || loading) return;
 
     setInput("");
-    setMessages(prev => [...prev, { role: "user", content: msg }]);
+    const userMsg: ChatMessage = { role: "user", content: msg };
+    setMessages(prev => [...prev, userMsg]);
     setLoading(true);
 
     try {
       const perfCount = clips.filter(c => c.type === "performance").length;
       const brollCount = clips.filter(c => c.type === "broll").length;
+
+      // Build media_resources from clips (unique clip_ids with type)
+      const seen = new Set<string>();
+      const mediaResources: { id: string; type: string; duration: number }[] = [];
+      for (const c of clips) {
+        if (!seen.has(c.clip_id)) {
+          seen.add(c.clip_id);
+          mediaResources.push({
+            id: c.clip_id,
+            type: c.type,
+            duration: c.end - c.start,
+          });
+        }
+      }
+
+      // Build conversation history for threading (exclude initial greeting)
+      const conversationHistory = messages
+        .filter((m, i) => !(i === 0 && m.role === "director" && !m.placements && !m.manifest))
+        .map(m => ({ role: m.role, content: m.content }));
 
       const { data, error } = await supabase.functions.invoke("ai-creative-director", {
         body: {
@@ -82,6 +263,10 @@ export function DirectorChat({
           brollClipCount: brollCount,
           beatTimestamps: beats,
           user_message: msg,
+          project_id: projectId,
+          media_resources: mediaResources,
+          conversation_history: conversationHistory,
+          output_format: "manifest",
         },
       });
 
@@ -93,6 +278,22 @@ export function DirectorChat({
         return;
       }
 
+      // Handle manifest-based response
+      if (data.manifest) {
+        const manifest = data.manifest as EditManifest;
+        const stats = getManifestStats(manifest);
+        const note = data.creative_note ?? "Here's how I'd cut this.";
+
+        setMessages(prev => [...prev, {
+          role: "director",
+          content: `${note}\n\n${stats.cutCount} clips · ${stats.effectCount} effects · ${Math.round(stats.confidence * 100)}% confidence`,
+          manifest,
+          placements: data.placements,
+        }]);
+        return;
+      }
+
+      // Legacy placements fallback
       const note = data.creative_note ?? "Here's how I'd cut this.";
       const placements: Placement[] = data.placements ?? [];
 
@@ -139,6 +340,34 @@ export function DirectorChat({
           </button>
         </div>
 
+        {/* Phase 5: Indexing status banner */}
+        {(indexingStatus === "checking" || indexingStatus === "indexing") && (
+          <div
+            className="px-4 py-2 border-b border-border flex items-center gap-2 shrink-0"
+            style={{ background: "hsl(var(--primary) / 0.05)" }}
+          >
+            <Loader2 className="w-3 h-3 text-primary animate-spin shrink-0" />
+            <span className="text-[11px] font-mono text-primary">
+              {indexingStatus === "checking"
+                ? "Checking footage..."
+                : `Analyzing footage (${indexingProgress.ready}/${indexingProgress.total})...`}
+            </span>
+          </div>
+        )}
+        {indexingStatus === "ready" &&
+          indexingProgress.total > 0 &&
+          messages.length <= 1 && (
+            <div
+              className="px-4 py-2 border-b border-border flex items-center gap-2 shrink-0"
+              style={{ background: "hsl(var(--primary) / 0.03)" }}
+            >
+              <Eye className="w-3 h-3 text-primary shrink-0" />
+              <span className="text-[11px] font-mono text-muted-foreground">
+                {indexingProgress.total} clips analyzed — I can see your footage
+              </span>
+            </div>
+          )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
           {messages.map((msg, i) => (
@@ -157,7 +386,25 @@ export function DirectorChat({
                 }}
               >
                 {msg.content}
-                {msg.placements && msg.placements.length > 0 && (
+
+                {/* Manifest-based APPLY button (preferred) */}
+                {msg.manifest && onApplyManifest && (
+                  <button
+                    onClick={() => onApplyManifest(msg.manifest!)}
+                    className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono w-full justify-center transition-colors"
+                    style={{
+                      background: "hsl(var(--primary) / 0.15)",
+                      color: "hsl(var(--primary))",
+                      border: "1px solid hsl(var(--primary) / 0.3)",
+                    }}
+                  >
+                    <CheckCircle className="w-3 h-3" />
+                    APPLY EDIT
+                  </button>
+                )}
+
+                {/* Legacy placements APPLY button (fallback when no manifest) */}
+                {!msg.manifest && msg.placements && msg.placements.length > 0 && (
                   <button
                     onClick={() => onApplyPlacements(msg.placements!)}
                     className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono w-full justify-center transition-colors"

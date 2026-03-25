@@ -67,6 +67,32 @@ Deno.serve(async (req) => {
         await supabase.rpc("update_storage_used", {
           p_user_id: mediaFile.user_id,
         });
+
+        // Phase 5: Create pending video index for Gemini analysis (non-song clips only)
+        try {
+          const { data: fileInfo } = await supabase
+            .from("media_files")
+            .select("file_type, project_id")
+            .eq("id", mediaFile.id)
+            .single();
+
+          if (fileInfo && fileInfo.file_type !== "song" && playbackId) {
+            await supabase.from("video_indexes").upsert(
+              {
+                media_file_id: mediaFile.id,
+                project_id: fileInfo.project_id,
+                user_id: mediaFile.user_id,
+                status: "pending",
+                gemini_model: "gemini-2.5-flash",
+              },
+              { onConflict: "media_file_id", ignoreDuplicates: true }
+            );
+            console.log(`Created pending video_index for media_file ${mediaFile.id}`);
+          }
+        } catch (indexErr) {
+          // Non-blocking — indexing will happen as fallback when Director Chat opens
+          console.error("Failed to create pending video index:", indexErr);
+        }
       }
 
       // ── Check if this upload belongs to an export (render pipeline) ──

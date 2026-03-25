@@ -18,6 +18,7 @@ ROTOVIDE is a beat-synced music video editor for rap artists. Users upload foota
 | Video CDN | Mux (upload, stream, MP4 export) |
 | Payments | Stripe + RevenueCat (future iOS) |
 | AI | Claude Haiku via Anthropic API (ai-creative-director) |
+| Video Understanding | Gemini 2.5 Flash via Google AI API (index-video) |
 
 ---
 
@@ -38,6 +39,7 @@ RAILWAY_RENDER_URL   # https://rotovide-production.up.railway.app
 RENDER_SECRET        # shared secret between Supabase ↔ Railway
 STRIPE_SECRET_KEY
 ANTHROPIC_API_KEY
+GEMINI_API_KEY       # Google AI API key for Gemini 2.5 Flash video understanding
 MUX_TOKEN_ID
 MUX_TOKEN_SECRET
 ```
@@ -88,7 +90,9 @@ All Mux uploads must include `"mp4_support": "standard"` in `new_asset_settings`
 | `trigger-render` | Accepts export request, forwards to Railway, returns 502 on failure |
 | `mux-webhook` | Handles Mux asset-ready events, sets export `status = "completed"` |
 | `render-db-proxy` | Allows Railway to read/write Supabase DB using service role (Railway can't hold service key directly) |
-| `ai-creative-director` | Claude Haiku: beat-based clip placement + cinematic effect recommendations |
+| `ai-creative-director` | Claude Haiku: beat-based clip placement + cinematic effect recommendations (injects Gemini scene data when available) |
+| `index-video` | Gemini 2.5 Flash: analyzes video clips → structured scene descriptions (faces, clothing, locations, moods) stored in `video_indexes` |
+| `parallel-edit-gen` | Generates 3 edit style variants (high_energy, cinematic, slow_mood) in parallel via Claude Haiku |
 | `create-mux-upload` | Creates a Mux direct upload session |
 | `check-subscription` | Validates Stripe subscription status |
 | `stripe-webhook` | Handles Stripe events |
@@ -122,6 +126,8 @@ src/
     lyricsEngine.ts
     audioAnalyzer.ts
     storageLimits.ts
+    editManifest.ts    # EditManifest types + utilities
+    manifestInterpreter.ts  # EditManifest → TimelineClip[] converter
 ```
 
 ---
@@ -134,6 +140,7 @@ src/
 4. **Face keyframe arrays** — DB stores some numeric fields as `[value]` arrays. The `_f()` helper in `main.py` is required.
 5. **Stale "queued" exports** — recovery in ExportPanel only restores `"processing"` status, not `"queued"`, to prevent stale records hiding the START EXPORT button.
 6. **Mux MP4 support** — must pass `"mp4_support": "standard"` when creating the upload or the asset won't have a downloadable MP4.
+7. **Gemini video indexing** — uses `low.mp4` (480p) from Mux to stay within Supabase edge function memory limits. Indexes are cached in `video_indexes` table with 30-day TTL and idempotent `UNIQUE(media_file_id)`. Pending rows created by `mux-webhook`; actual Gemini analysis triggered by Director Chat on open.
 
 ---
 

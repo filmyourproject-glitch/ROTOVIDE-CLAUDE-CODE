@@ -209,3 +209,37 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
 
 // Trial plan limits — same as Pro during active trial
 export const TRIAL_LIMITS = PLAN_LIMITS.pro
+
+// ── Phase 5: Video Understanding ──
+
+export type VideoIndexStatus = 'pending' | 'processing' | 'ready' | 'failed'
+
+export interface VideoIndexScene {
+  timestamp: number
+  duration: number
+  description: string
+  faces: { description: string; clothing: string; expression: string }[]
+  location: string
+  action: string
+  mood: string
+  energy: number
+  camera: string
+}
+
+export interface VideoIndex {
+  id: string
+  media_file_id: string
+  project_id: string
+  user_id: string
+  scene_descriptions: VideoIndexScene[]
+  visual_summary: string | null
+  status: VideoIndexStatus
+  error_message: string | null
+  gemini_model: string
+  token_count: number | null
+  processing_time_ms: number | null
+  indexed_at: string | null
+  expires_at: string | null
+  created_at: string
+  updated_at: string
+}

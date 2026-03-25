@@ -11,6 +11,9 @@ import { EditingToolbar, type EditTool } from "@/components/editor/EditingToolba
 import { MobilePanelSheet, type TabId } from "@/components/editor/MobilePanelSheet";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useTimelineHistory } from "@/hooks/useTimelineHistory";
+import { StyleComparisonPanel } from "@/components/editor/StyleComparisonPanel";
+import type { EditManifest } from "@/lib/editManifest";
+import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section } from "@/types";
@@ -95,6 +98,8 @@ export default function EditorPage() {
   const [timelineExpanded, setTimelineExpanded] = useState(false);
   const [exportPanelOpen, setExportPanelOpen] = useState(false);
   const [directorChatOpen, setDirectorChatOpen] = useState(false);
+  const [styleCompOpen, setStyleCompOpen] = useState(false);
+  const [currentManifestId, setCurrentManifestId] = useState<string | null>(null);
 
   // Lyrics caption state
   const [lyricsWords, setLyricsWords] = useState<LyricWord[]>([]);
@@ -235,6 +240,19 @@ export default function EditorPage() {
     const newTd = { ...timelineData, timeline: newClips };
     updateTimelineWithHistory(newTd);
     setDirectorChatOpen(false);
+  }, [timelineData, clips, updateTimelineWithHistory]);
+
+  // ── Director Chat: apply AI manifest to timeline ──
+  const handleApplyManifest = useCallback((manifest: EditManifest) => {
+    if (!timelineData) return;
+    const newClips = convertManifestToTimeline(manifest, clips);
+    if (newClips.length === 0) return;
+    const newTd = { ...timelineData, timeline: newClips };
+    updateTimelineWithHistory(newTd);
+    // Track which manifest is active (Phase 4)
+    setCurrentManifestId(manifest.metadata?.id ?? null);
+    setDirectorChatOpen(false);
+    setStyleCompOpen(false);
   }, [timelineData, clips, updateTimelineWithHistory]);
 
   // ── Keyboard Shortcuts ──
@@ -440,6 +458,22 @@ export default function EditorPage() {
         initHistory(resolvedTd);
         historyInitialized.current = true;
       }
+
+      // Load current manifest ID (Phase 4)
+      try {
+        const { data: currentManifest } = await supabase
+          .from("edit_manifests")
+          .select("id")
+          .eq("project_id", id)
+          .eq("is_current", true)
+          .maybeSingle();
+        if (currentManifest?.id) {
+          setCurrentManifestId(currentManifest.id);
+        }
+      } catch {
+        // Non-critical — proceed without manifest tracking
+      }
+
       setLoadState("ready");
     })();
   }, [id]);
@@ -1105,6 +1139,18 @@ export default function EditorPage() {
           DIRECTOR
         </Button>
 
+        {/* Style Comparison — desktop only, pro feature */}
+        <Button
+          size="sm"
+          variant="outline"
+          className="hidden md:flex h-9 px-3 gap-2 shrink-0"
+          style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2, fontSize: 14 }}
+          onClick={() => setStyleCompOpen(true)}
+        >
+          <Sparkles className="w-4 h-4" />
+          STYLES
+        </Button>
+
         {/* Export */}
         <Button
           size="sm"
@@ -1243,6 +1289,7 @@ export default function EditorPage() {
       <DirectorChat
         open={directorChatOpen}
         onClose={() => setDirectorChatOpen(false)}
+        projectId={id!}
         bpm={timelineData?.bpm || project?.bpm || 140}
         songDuration={duration}
         stylePreset={stylePreset}
@@ -1250,6 +1297,20 @@ export default function EditorPage() {
         clips={clips}
         beats={beats}
         onApplyPlacements={handleApplyPlacements}
+        onApplyManifest={handleApplyManifest}
+      />
+
+      {/* Style Comparison */}
+      <StyleComparisonPanel
+        open={styleCompOpen}
+        onClose={() => setStyleCompOpen(false)}
+        projectId={id!}
+        bpm={timelineData?.bpm || project?.bpm || 140}
+        songDuration={duration}
+        sections={sections}
+        clips={clips}
+        beats={beats}
+        onApplyManifest={handleApplyManifest}
       />
 
       {/* Export Panel */}
@@ -1265,6 +1326,7 @@ export default function EditorPage() {
         bangerStart={bangerResult?.startTime}
         bangerEnd={bangerResult?.endTime}
         hasLyrics={lyricsWords.length > 0}
+        manifestId={currentManifestId ?? undefined}
       />
     </div>
   );

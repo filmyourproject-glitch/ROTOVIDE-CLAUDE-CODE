@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { export_id, project_id } = await req.json();
+    const { export_id, project_id, manifest_id } = await req.json();
 
     if (!export_id || !project_id) {
       return new Response(JSON.stringify({ error: "Missing export_id or project_id" }), {
@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         "X-Render-Secret": renderSecret,
       },
-      body: JSON.stringify({ export_id, project_id }),
+      body: JSON.stringify({ export_id, project_id, ...(manifest_id ? { manifest_id } : {}) }),
       signal: AbortSignal.timeout(30_000),
     });
 
