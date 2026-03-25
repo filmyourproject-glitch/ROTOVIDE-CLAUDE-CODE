@@ -20,7 +20,9 @@ const EFFECT_TYPE_MAP: Partial<Record<ManifestEffectType, Effect["type"]>> = {
   shake: "camera_shake",
   speed: "speed_ramp",
   grain: "film_grain",
-  // color_grade, letterbox, vignette → skipped (handled by editor/render pipeline)
+  color_grade: "color_grade",
+  letterbox: "letterbox",
+  vignette: "vignette",
 };
 
 const TRANSITION_TYPE_MAP: Record<string, Effect["type"] | null> = {
@@ -61,6 +63,27 @@ function mapTransitionToEffect(
 
 function mapFaceCrop(fc: ManifestFaceCrop | undefined): CropSettings | null {
   if (!fc?.enabled) return null;
+
+  // Pass through per-clip face keyframes from the manifest
+  if (fc.tracked && fc.keyframes?.length) {
+    return {
+      strategy: "face_tracked",
+      width_pct: 0.5625,
+      keyframes: fc.keyframes.map((kf) => ({
+        t: kf.timestamp,
+        x: kf.x,
+        y: kf.y,
+        confidence: kf.confidence,
+      })),
+    };
+  }
+
+  // Static crop position from manifest
+  if (fc.static_x != null) {
+    return { strategy: "smart_center", width_pct: 0.5625, static_x: fc.static_x };
+  }
+
+  // Default: smart center with 9:16 aspect
   return { strategy: "smart_center", width_pct: 0.5625 };
 }
 
@@ -137,7 +160,15 @@ export function convertManifestToTimeline(
       for (const me of clip.effects) {
         const mapped = mapManifestEffect(me);
         if (mapped) {
-          mapped.at_seconds = clip.timeline_position;
+          // at_seconds relative to song timeline, offset within clip if specified
+          const effectOffset =
+            typeof me.params?.at_seconds === "number" ? me.params.at_seconds : 0;
+          mapped.at_seconds = clip.timeline_position + effectOffset;
+          // duration defaults to the clip's full duration when not specified
+          mapped.duration_seconds =
+            typeof me.params?.duration === "number"
+              ? me.params.duration
+              : clip.source_range.duration;
           effects.push(mapped);
         }
       }

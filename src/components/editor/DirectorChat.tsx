@@ -20,6 +20,7 @@ interface ChatMessage {
   content: string;
   placements?: Placement[];
   manifest?: EditManifest;
+  changes?: string[];
 }
 
 interface DirectorChatProps {
@@ -34,6 +35,7 @@ interface DirectorChatProps {
   beats: number[];
   onApplyPlacements: (placements: Placement[]) => void;
   onApplyManifest?: (manifest: EditManifest) => void;
+  activeManifest?: EditManifest | null;
 }
 
 export function DirectorChat({
@@ -48,6 +50,7 @@ export function DirectorChat({
   beats,
   onApplyPlacements,
   onApplyManifest,
+  activeManifest,
 }: DirectorChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -201,14 +204,17 @@ export function DirectorChat({
       indexingStatus === "ready" && indexingProgress.total > 0
         ? ` I've analyzed your footage and can reference specific shots, outfits, and locations.`
         : "";
+    const refineNote = activeManifest
+      ? `\n\nYou have an active edit — ask me to refine specific parts (e.g. "make the chorus cuts faster" or "swap the clip at 0:45").`
+      : "";
 
     setMessages([
       {
         role: "director",
-        content: `Ready to direct. This track is ${bpm} BPM with ${perfCount} performance clips and ${brollCount} B-roll clips.${visualNote}\n\nTell me how you want the video to feel — I'll rearrange cuts to match your vision.`,
+        content: `Ready to direct. This track is ${bpm} BPM with ${perfCount} performance clips and ${brollCount} B-roll clips.${visualNote}\n\nTell me how you want the video to feel — I'll rearrange cuts to match your vision.${refineNote}`,
       },
     ]);
-  }, [open, indexingStatus, indexingProgress.total, bpm, clips]);
+  }, [open, indexingStatus, indexingProgress.total, bpm, clips, activeManifest]);
 
   // Reset greeting flag when chat closes
   useEffect(() => {
@@ -267,6 +273,8 @@ export function DirectorChat({
           media_resources: mediaResources,
           conversation_history: conversationHistory,
           output_format: "manifest",
+          // Phase 6: Send current manifest for incremental refinement
+          current_manifest: activeManifest ?? undefined,
         },
       });
 
@@ -283,12 +291,21 @@ export function DirectorChat({
         const manifest = data.manifest as EditManifest;
         const stats = getManifestStats(manifest);
         const note = data.creative_note ?? "Here's how I'd cut this.";
+        const changes: string[] | undefined = data.changes;
+
+        // Build content — show changes if this was an incremental refinement
+        let content = note;
+        if (changes?.length) {
+          content += "\n\nChanges:\n" + changes.map((c: string) => `• ${c}`).join("\n");
+        }
+        content += `\n\n${stats.cutCount} clips · ${stats.effectCount} effects · ${Math.round(stats.confidence * 100)}% confidence`;
 
         setMessages(prev => [...prev, {
           role: "director",
-          content: `${note}\n\n${stats.cutCount} clips · ${stats.effectCount} effects · ${Math.round(stats.confidence * 100)}% confidence`,
+          content,
           manifest,
           placements: data.placements,
+          changes,
         }]);
         return;
       }

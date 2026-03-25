@@ -11,6 +11,8 @@ import { LyricsCaptionOverlay } from "./LyricsCaptionOverlay";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
 import { TransportControls } from "./video-preview/TransportControls";
 import { FaceTrackingBadge, WatermarkOverlay } from "./video-preview/VideoOverlays";
+import { EffectOverlay, type ActiveTransition } from "./video-preview/EffectOverlay";
+import type { Effect } from "@/types";
 
 export interface CameraEntry {
   url: string;
@@ -48,6 +50,10 @@ interface VideoPreviewProps {
   lyricsStyle?: CaptionStyle;
   lyricsSize?: CaptionSize;
   lyricsPosition?: CaptionPosition;
+  // Phase 6: manifest effect overlays
+  activeEffects?: Effect[];
+  activeTransition?: ActiveTransition | null;
+  clipEnd?: number;
 }
 
 export function VideoPreview({
@@ -77,6 +83,9 @@ export function VideoPreview({
   lyricsStyle = "highlight",
   lyricsSize = "M",
   lyricsPosition = "bottom",
+  activeEffects = [],
+  activeTransition = null,
+  clipEnd = 0,
 }: VideoPreviewProps) {
   // ── N-camera multicam architecture ──
   // One video element per unique performance camera, all playing simultaneously.
@@ -396,6 +405,15 @@ export function VideoPreview({
             words={lyricsWords} currentTime={currentTime} visible={lyricsVisible}
             style={lyricsStyle} size={lyricsSize} position={lyricsPosition}
           />
+          {activeEffects.length > 0 || activeTransition ? (
+            <EffectOverlay
+              effects={activeEffects}
+              transition={activeTransition}
+              currentTime={currentTime}
+              clipStart={clipStart}
+              clipEnd={clipEnd}
+            />
+          ) : null}
         </div>
       );
     }

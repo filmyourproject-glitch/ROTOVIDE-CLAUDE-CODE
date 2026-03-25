@@ -16,7 +16,9 @@
       "Bash(grep:*)",
       "WebFetch(domain:ai.google.dev)",
       "Bash(supabase secrets set:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git -C \"/Users/fernandofelix/Downloads/rotovide-main 2\" log --oneline -20)",
+      "Bash(python3:*)"
     ]
   }
 }

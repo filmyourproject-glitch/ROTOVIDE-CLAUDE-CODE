@@ -89,6 +89,139 @@ def get_face_position_at_time(keyframes: list, target_time: float) -> float:
     return _f(before, "x", 0.5) + (_f(after, "x", 0.5) - _f(before, "x", 0.5)) * ratio
 
 
+def resolve_media_ref(
+    media_ref: str,
+    media_files: dict,
+    clip_index: int,
+) -> str | None:
+    """
+    Resolve a manifest media_ref to an actual media file ID.
+    Tries: direct ID match → filename match → type cycling fallback.
+    """
+    # 1. Direct ID match
+    if media_ref in media_files:
+        return media_ref
+
+    # 2. Filename match (case-insensitive)
+    ref_lower = media_ref.lower()
+    for fid, fdata in media_files.items():
+        if fdata.get("file_name", "").lower() == ref_lower:
+            return fid
+        if fdata.get("file_name", "").lower().startswith(ref_lower):
+            return fid
+
+    # 3. Type cycling — "perf_N" or "broll_N" patterns
+    if media_ref.startswith("perf"):
+        perf_clips = [fid for fid, f in media_files.items()
+                      if f.get("file_type") in ("performance_clip",) or
+                         f.get("clip_classification") == "performance"]
+        if perf_clips:
+            return perf_clips[clip_index % len(perf_clips)]
+    elif media_ref.startswith("broll"):
+        broll_clips = [fid for fid, f in media_files.items()
+                       if f.get("file_type") in ("broll_clip",) or
+                          f.get("clip_classification") == "broll"]
+        if broll_clips:
+            return broll_clips[clip_index % len(broll_clips)]
+
+    # 4. Fallback: cycle through all video clips
+    video_clips = [fid for fid, f in media_files.items()
+                   if f.get("file_type") not in ("song", "export")]
+    if video_clips:
+        return video_clips[clip_index % len(video_clips)]
+
+    return None
+
+
+def build_manifest_effects_filters(effects: list, duration: float) -> list[str]:
+    """
+    Build FFmpeg filter strings for manifest effects.
+    Returns a list of filter expressions to insert into the filter chain.
+    """
+    filters = []
+    for eff in effects:
+        etype = eff.get("type", "")
+        intensity = float(eff.get("intensity", 0.5))
+        params = eff.get("params", {})
+
+        if etype == "grain":
+            # Film grain noise
+            noise_val = int(min(40, intensity * 40))
+            filters.append(f"noise=alls={noise_val}:allf=t+u")
+
+        elif etype == "vignette":
+            # FFmpeg vignette filter
+            angle = 3.14159 / (3 + intensity * 2)  # PI/5 to PI/3
+            filters.append(f"vignette=a={angle:.4f}")
+
+        elif etype == "letterbox":
+            # Draw black bars (top and bottom)
+            bar_pct = 0.04 + intensity * 0.08  # 4-12% of height per bar
+            filters.append(
+                f"drawbox=x=0:y=0:w=iw:h=trunc(ih*{bar_pct:.3f}):c=black:t=fill,"
+                f"drawbox=x=0:y=ih-trunc(ih*{bar_pct:.3f}):w=iw:h=trunc(ih*{bar_pct:.3f}):c=black:t=fill"
+            )
+
+        elif etype == "shake":
+            # Camera shake via small random crop
+            jitter = max(2, int(intensity * 8))
+            filters.append(
+                f"crop=iw-{jitter*2}:ih-{jitter*2}:"
+                f"{jitter}+{jitter}*random(1):{jitter}+{jitter}*random(1),"
+                f"scale=iw+{jitter*2}:ih+{jitter*2}"
+            )
+
+        elif etype == "zoom":
+            # Smooth zoom via zoompan with a fixed output size
+            # zoompan needs a fixed `s` (size) parameter — we use 1080x1920
+            # and rely on subsequent scale+pad to resize to final dimensions
+            zoom_delta = 0.0005 * intensity
+            zoom_max = 1.0 + intensity * 0.2
+            frames = max(1, int(duration * 30))
+            filters.append(
+                f"zoompan=z='min(pzoom+{zoom_delta:.6f}\\,{zoom_max:.4f})':"
+                f"d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+                f"fps=30:s=1080x1920"
+            )
+
+        elif etype == "speed":
+            # Speed ramp — slow down then snap
+            factor = float(params.get("factor", 0.5))
+            if factor > 0 and factor != 1.0:
+                filters.append(f"setpts={1/factor:.4f}*PTS")
+
+    return filters
+
+
+def build_transition_filters(transition_in: dict | None, transition_out: dict | None,
+                              duration: float) -> list[str]:
+    """
+    Build FFmpeg filter strings for transitions.
+    Returns filter expressions for fade in/out.
+    """
+    filters = []
+    if transition_in:
+        t_type = transition_in.get("type", "cut")
+        t_dur = float(transition_in.get("duration", 0.3))
+        if t_type in ("fade", "dissolve") and t_dur > 0:
+            filters.append(f"fade=t=in:st=0:d={t_dur:.3f}")
+        elif t_type == "flash" and t_dur > 0:
+            # Flash: fade from white
+            filters.append(f"fade=t=in:st=0:d={min(t_dur, 0.15):.3f}:c=white")
+
+    if transition_out:
+        t_type = transition_out.get("type", "cut")
+        t_dur = float(transition_out.get("duration", 0.3))
+        if t_type in ("fade", "dissolve") and t_dur > 0:
+            fade_start = max(0, duration - t_dur)
+            filters.append(f"fade=t=out:st={fade_start:.3f}:d={t_dur:.3f}")
+        elif t_type == "flash" and t_dur > 0:
+            fade_start = max(0, duration - min(t_dur, 0.15))
+            filters.append(f"fade=t=out:st={fade_start:.3f}:d={min(t_dur, 0.15):.3f}:c=white")
+
+    return filters
+
+
 def build_ffmpeg_segment_cmd(
     src_path: str,
     seg_path: str,
@@ -100,6 +233,9 @@ def build_ffmpeg_segment_cmd(
     face_keyframes: list,
     lut_path: str | None,
     intensity: float,
+    manifest_effects: list | None = None,
+    transition_in: dict | None = None,
+    transition_out: dict | None = None,
 ) -> list[str]:
     """
     Build the FFmpeg command for a single segment.
@@ -107,6 +243,8 @@ def build_ffmpeg_segment_cmd(
     Handles:
     - Trim (ss/t)
     - 9:16 face-tracked crop (or center crop)
+    - Manifest effects (grain, vignette, letterbox, shake, zoom, speed)
+    - Transitions (fade in/out)
     - Scale + pad to target resolution
     - LUT-based color grading via lut3d filter
     - Intensity blending (uses filter_complex when intensity < 1.0)
@@ -127,6 +265,15 @@ def build_ffmpeg_segment_cmd(
             crop = "crop=trunc(ih*9/16):ih:trunc((iw-trunc(ih*9/16))/2):0"
 
         base_filters.append(crop)
+
+    # ── Phase 6: Insert manifest effect filters after crop, before scale ──
+    if manifest_effects:
+        effect_filters = build_manifest_effects_filters(manifest_effects, duration)
+        base_filters.extend(effect_filters)
+
+    if transition_in or transition_out:
+        trans_filters = build_transition_filters(transition_in, transition_out, duration)
+        base_filters.extend(trans_filters)
 
     base_filters.append(f"scale={width}:{height}:force_original_aspect_ratio=decrease")
     base_filters.append(f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2")
@@ -341,8 +488,34 @@ def _do_render_inner(export_id: str, project_id: str, manifest_id: str | None = 
         if not song_file:
             raise Exception("No song file found for project")
 
-        timeline_clips = timeline_data.get("timeline", [])
         song_duration = timeline_data.get("duration", 204)
+
+        # ── Phase 6: Manifest-first timeline resolution ──
+        # When a manifest is present with clips, use it as the primary timeline
+        # source instead of timeline_data.timeline. This ensures exports match
+        # what the user sees in the preview.
+        if manifest and manifest_clip_map:
+            print(f"Using manifest-first timeline ({len(manifest_clip_map)} clips)", flush=True)
+            timeline_clips = []
+            for i, mc in enumerate(
+                sorted(manifest_clip_map.values(), key=lambda c: c.get("timeline_position", 0))
+            ):
+                media_ref = mc.get("media_ref", "")
+                resolved_id = resolve_media_ref(media_ref, media_files, i)
+                if not resolved_id:
+                    print(f"Warning: Could not resolve media_ref '{media_ref}', skipping", flush=True)
+                    continue
+
+                clip_duration = mc.get("source_range", {}).get("duration", 3.0)
+                timeline_clips.append({
+                    "clip_id": resolved_id,
+                    "start": mc.get("timeline_position", 0),
+                    "end": mc.get("timeline_position", 0) + clip_duration,
+                    "source_offset": mc.get("source_range", {}).get("start", 0),
+                    "_manifest_clip": mc,  # Carry manifest data for effect rendering
+                })
+        else:
+            timeline_clips = timeline_data.get("timeline", [])
 
         with tempfile.TemporaryDirectory() as tmpdir:
             print(f"Downloading song: {song_file['file_name']}", flush=True)
@@ -400,19 +573,29 @@ def _do_render_inner(export_id: str, project_id: str, manifest_id: str | None = 
                 media = media_files.get(clip_id, {})
                 face_keyframes = media.get("face_keyframes", [])
 
-                # ── Manifest enrichment (Phase 4) ──
+                # ── Manifest enrichment (Phase 4 + Phase 6) ──
                 clip_intensity = color_grade_intensity
-                manifest_clip = manifest_clip_map.get(round(tc.get("start", 0), 3), {})
+                manifest_clip = tc.get("_manifest_clip") or manifest_clip_map.get(round(tc.get("start", 0), 3), {})
+                manifest_effects = []
+                transition_in = None
+                transition_out = None
+
                 if manifest_clip:
                     # Per-clip face keyframes from manifest
                     mf_face_crop = manifest_clip.get("face_crop", {})
                     if mf_face_crop.get("keyframes"):
                         face_keyframes = mf_face_crop["keyframes"]
-                    # Per-clip color grade intensity from manifest effects
+
+                    # Per-clip effects from manifest
                     for eff in manifest_clip.get("effects", []):
                         if eff.get("type") == "color_grade":
                             clip_intensity = float(eff.get("intensity", color_grade_intensity))
-                            break
+                        else:
+                            manifest_effects.append(eff)
+
+                    # Transitions
+                    transition_in = manifest_clip.get("transition_in")
+                    transition_out = manifest_clip.get("transition_out")
 
                 cmd = build_ffmpeg_segment_cmd(
                     src_path=downloaded_clips[clip_id],
@@ -425,6 +608,9 @@ def _do_render_inner(export_id: str, project_id: str, manifest_id: str | None = 
                     face_keyframes=face_keyframes,
                     lut_path=lut_path,
                     intensity=clip_intensity,
+                    manifest_effects=manifest_effects if manifest_effects else None,
+                    transition_in=transition_in,
+                    transition_out=transition_out,
                 )
 
                 print(f"[FFmpeg] segment {i}: {' '.join(cmd)}", flush=True)

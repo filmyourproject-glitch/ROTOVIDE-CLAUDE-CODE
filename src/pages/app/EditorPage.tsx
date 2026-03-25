@@ -16,7 +16,7 @@ import type { EditManifest } from "@/lib/editManifest";
 import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section } from "@/types";
+import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section, Effect } from "@/types";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
 import { loadFaceModel, detectFaceFromUrl, type FaceCrop } from "@/lib/faceDetection";
 import { computeBangerScore } from "@/lib/audioAnalyzer";
@@ -100,6 +100,7 @@ export default function EditorPage() {
   const [directorChatOpen, setDirectorChatOpen] = useState(false);
   const [styleCompOpen, setStyleCompOpen] = useState(false);
   const [currentManifestId, setCurrentManifestId] = useState<string | null>(null);
+  const [activeManifest, setActiveManifest] = useState<EditManifest | null>(null);
 
   // Lyrics caption state
   const [lyricsWords, setLyricsWords] = useState<LyricWord[]>([]);
@@ -251,6 +252,8 @@ export default function EditorPage() {
     updateTimelineWithHistory(newTd);
     // Track which manifest is active (Phase 4)
     setCurrentManifestId(manifest.metadata?.id ?? null);
+    // Phase 6: store full manifest for iterative refinement
+    setActiveManifest(manifest);
     setDirectorChatOpen(false);
     setStyleCompOpen(false);
   }, [timelineData, clips, updateTimelineWithHistory]);
@@ -916,6 +919,51 @@ export default function EditorPage() {
 
   const currentClip = currentClipIndex >= 0 ? clips[currentClipIndex] : null;
 
+  // ── Phase 6: compute active effects at playhead from current clip ──
+  const activeEffects = useMemo(() => {
+    if (!currentClip?.effects?.length) return [];
+    return currentClip.effects.filter((e) => {
+      const effectStart = e.at_seconds;
+      const effectEnd = effectStart + (e.duration_seconds ?? currentClip.end - currentClip.start);
+      return currentTime >= effectStart && currentTime < effectEnd;
+    });
+  }, [currentClip, currentTime]);
+
+  // Detect transition at clip boundary (last 300ms of clip or first 300ms of next)
+  const activeTransition = useMemo(() => {
+    if (!currentClip || !clips.length) return null;
+    // Check for transition effects (slow_dissolve, whip_transition, hard_cut) near clip end
+    const transEffect = currentClip.effects.find(
+      (e) => e.type === "slow_dissolve" || e.type === "whip_transition" || e.type === "hard_cut"
+    );
+    if (!transEffect) return null;
+    const transitionDuration = transEffect.duration_seconds ?? 0.3;
+    const transStart = currentClip.end - transitionDuration;
+    if (currentTime < transStart || currentTime > currentClip.end) return null;
+    const progress = (currentTime - transStart) / transitionDuration;
+    const typeMap: Record<string, "fade" | "dissolve" | "flash" | "wipe"> = {
+      slow_dissolve: "dissolve",
+      whip_transition: "wipe",
+      hard_cut: "flash",
+    };
+    return { type: typeMap[transEffect.type] ?? ("fade" as const), progress };
+  }, [currentClip, currentTime, clips]);
+
+  // Prefer manifest face keyframes over DB keyframes when available
+  const activeFaceKeyframes = useMemo(() => {
+    if (currentClip?.crop?.keyframes?.length) {
+      // Map CropSettings keyframes to FaceKeyframe format
+      return currentClip.crop.keyframes.map((kf) => ({
+        t: kf.t,
+        x: kf.x,
+        y: kf.y,
+        confidence: kf.confidence,
+        trackingSource: "face" as const,
+      }));
+    }
+    return undefined; // fall back to activeClipMeta?.faceKeyframes
+  }, [currentClip]);
+
   // ── Multicam camera registry ──
   // Build a map of ALL unique performance cameras with their xcorrOffset.
   // xcorrOffset = seconds into the clip where the song audio begins (from xcorr analysis)
@@ -1200,11 +1248,14 @@ export default function EditorPage() {
             clipStatus={activeClipStatus}
             isImageOnly={activeClipIsImageOnly}
             faceCrop={currentClip ? faceCrops[currentClip.clip_id] : undefined}
-            faceKeyframes={activeClipMeta?.faceKeyframes}
+            faceKeyframes={activeFaceKeyframes ?? activeClipMeta?.faceKeyframes}
             currentClipId={currentClip?.id}
             clipStart={currentClip?.start ?? 0}
+            clipEnd={currentClip?.end ?? 0}
             sourceOffset={currentClip?.source_offset ?? 0}
             showWatermark={showWatermark}
+            activeEffects={activeEffects}
+            activeTransition={activeTransition}
             lyricsWords={lyricsWords}
             lyricsVisible={lyricsVisible}
             lyricsStyle={lyricsStyle}
@@ -1298,6 +1349,7 @@ export default function EditorPage() {
         beats={beats}
         onApplyPlacements={handleApplyPlacements}
         onApplyManifest={handleApplyManifest}
+        activeManifest={activeManifest}
       />
 
       {/* Style Comparison */}

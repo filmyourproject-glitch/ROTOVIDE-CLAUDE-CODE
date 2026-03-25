@@ -210,6 +210,95 @@ Output a video track with clips covering the entire song. Each clip references a
 }`;
 }
 
+/** Build a prompt for incremental manifest refinement (user has an existing edit) */
+function buildIncrementalPrompt(params: {
+  bpm: number;
+  songDuration: number;
+  stylePreset: string;
+  sections: unknown[];
+  performanceClipCount: number;
+  brollClipCount: number;
+  beatTimestamps: number[];
+  userMessage: string;
+  mediaResources?: { id: string; type: string; duration: number }[];
+  sceneContext?: string;
+  currentManifest: {
+    metadata: { id: string; style_label: string };
+    timeline: {
+      tracks: Array<{
+        kind: string;
+        clips: Array<{
+          id: string;
+          media_ref: string;
+          timeline_position: number;
+          source_range: { start: number; duration: number };
+          effects: Array<{ id: string; type: string; params: Record<string, unknown>; intensity?: number }>;
+          transition_in?: { type: string; duration: number };
+          transition_out?: { type: string; duration: number };
+          face_crop?: { enabled: boolean; tracked?: boolean };
+          ai_rationale?: string;
+        }>;
+      }>;
+    };
+  };
+}) {
+  const mediaList = params.mediaResources?.length
+    ? `\nAvailable media resources (use these exact IDs as media_ref):\n${params.mediaResources.map((m) => `- "${m.id}" (${m.type}, ${m.duration.toFixed(1)}s)`).join("\n")}`
+    : "";
+
+  // Serialize current clips for the AI to see
+  const currentClips = params.currentManifest.timeline.tracks
+    .filter((t) => t.kind === "video")
+    .flatMap((t) => t.clips);
+
+  const clipSummary = currentClips
+    .map(
+      (c, i) =>
+        `  [${i}] id="${c.id}" media_ref="${c.media_ref}" @${c.timeline_position.toFixed(2)}s dur=${c.source_range.duration.toFixed(2)}s effects=[${c.effects.map((e) => e.type).join(",")}] transition_in=${c.transition_in?.type ?? "cut"} rationale="${c.ai_rationale ?? ""}"`
+    )
+    .join("\n");
+
+  return `You are a professional music video director refining an existing edit based on the artist's feedback.
+
+The artist says: "${params.userMessage}"
+
+Here is the song data:
+- BPM: ${params.bpm}
+- Duration: ${params.songDuration} seconds
+- Edit style: ${params.stylePreset}
+- Sections: ${JSON.stringify(params.sections)}
+- Performance clips available: ${params.performanceClipCount}
+- B-roll clips available: ${params.brollClipCount}
+- First 20 beat timestamps: ${JSON.stringify(params.beatTimestamps.slice(0, 20))}
+${mediaList}
+${params.sceneContext || ""}
+
+── CURRENT EDIT (${currentClips.length} clips) ──
+${clipSummary}
+
+${STYLE_GUIDE}
+
+${EFFECT_GUIDE}
+
+── INCREMENTAL EDITING RULES ──
+1. Keep ALL clips that the artist did NOT mention unchanged — return them exactly as they are
+2. Only modify the specific clips, effects, or sections the artist referenced
+3. You MUST return ALL clips (unchanged ones too), not just changed ones
+4. Maintain beat alignment — all timeline_position values must land on beat timestamps
+5. If the artist asks to "swap" a clip, replace its media_ref but keep the timing
+6. If the artist asks to add/remove effects, modify the effects array on the relevant clips
+7. If the artist asks to change timing or pacing, adjust timeline_position and source_range accordingly
+
+After the clips array, include a "changes" array listing exactly what you changed (one string per change).
+
+Return ONLY valid JSON with no other text:
+{
+  "clips": [ ...all clips including unchanged ones... ],
+  "changes": ["Changed clip at 0:45 from broll to performance", "Added film_grain to chorus clips"],
+  "creative_note": "Brief description of what was refined"
+}`;
+}
+
 function buildLegacyPrompt(params: {
   bpm: number;
   songDuration: number;
@@ -416,9 +505,26 @@ Deno.serve(async (req) => {
       sceneContext,
     };
 
-    const prompt = useManifest
-      ? buildManifestPrompt(promptParams)
-      : buildLegacyPrompt(promptParams);
+    // Phase 6: Route to incremental prompt when refining an existing manifest
+    const hasExistingManifest =
+      useManifest &&
+      current_manifest?.timeline?.tracks?.some(
+        (t: { kind: string; clips: unknown[] }) =>
+          t.kind === "video" && t.clips?.length > 0
+      );
+
+    let prompt: string;
+    if (hasExistingManifest) {
+      console.log("[AI-CREATIVE-DIRECTOR] Using incremental refinement mode");
+      prompt = buildIncrementalPrompt({
+        ...promptParams,
+        currentManifest: current_manifest,
+      });
+    } else if (useManifest) {
+      prompt = buildManifestPrompt(promptParams);
+    } else {
+      prompt = buildLegacyPrompt(promptParams);
+    }
 
     // ── Build messages array (conversation threading) ──
     const messages: Array<{ role: string; content: string }> = [];
@@ -511,7 +617,12 @@ Deno.serve(async (req) => {
       });
 
       const creativeNote = parsed.creative_note || "AI-generated edit";
+      const changes: string[] = Array.isArray(parsed.changes) ? parsed.changes : [];
       const legacyPlacements = manifestClipsToLegacyPlacements(aiClips, bpm);
+
+      if (changes.length) {
+        console.log(`[AI-CREATIVE-DIRECTOR] Incremental changes: ${changes.join("; ")}`);
+      }
 
       // ── DB persistence ──
       if (project_id) {
@@ -562,6 +673,7 @@ Deno.serve(async (req) => {
           manifest,
           creative_note: creativeNote,
           placements: legacyPlacements,
+          ...(changes.length > 0 ? { changes } : {}),
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

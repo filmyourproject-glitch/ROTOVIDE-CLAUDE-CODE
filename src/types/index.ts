@@ -106,13 +106,16 @@ export interface TimelineClip {
 }
 
 export interface CropSettings {
-  strategy: 'smart_center' | 'none'
+  strategy: 'smart_center' | 'face_tracked' | 'none'
   width_pct: number
+  keyframes?: Array<{ t: number; x: number; y: number; confidence: number }>
+  static_x?: number
 }
 
 export interface Effect {
   type: 'hard_cut' | 'camera_shake' | 'whip_transition' | 'film_burn' | 'zoom_in' |
-        'speed_ramp' | 'film_grain' | 'vhs_overlay' | 'slow_dissolve' | 'warm_film_burn'
+        'speed_ramp' | 'film_grain' | 'vhs_overlay' | 'slow_dissolve' | 'warm_film_burn' |
+        'color_grade' | 'letterbox' | 'vignette'
   at_seconds: number
   duration_seconds?: number
   params: Record<string, unknown>
