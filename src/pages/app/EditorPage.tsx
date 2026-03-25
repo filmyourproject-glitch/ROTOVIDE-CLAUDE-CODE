@@ -335,6 +335,49 @@ export default function EditorPage() {
         setShortcutsOpen(true);
         return;
       }
+      // Frame stepping: , (back 1 frame) . (forward 1 frame)
+      if (e.key === "," && !ctrl && !e.shiftKey) {
+        e.preventDefault();
+        setCurrentTime(t => Math.max(0, t - 1 / 30));
+        return;
+      }
+      if (e.key === "." && !ctrl && !e.shiftKey) {
+        e.preventDefault();
+        const dur = songDuration || timelineData?.duration || 204;
+        setCurrentTime(t => Math.min(dur, t + 1 / 30));
+        return;
+      }
+      // JKL shuttle: J (back 2s), K (play/pause), L (forward 2s)
+      if (e.key === "j" || e.key === "J") {
+        if (!ctrl && !e.shiftKey && !e.altKey) {
+          e.preventDefault();
+          setCurrentTime(t => Math.max(0, t - 2));
+          return;
+        }
+      }
+      if (e.key === "k" || e.key === "K") {
+        if (!ctrl && !e.shiftKey && !e.altKey) {
+          e.preventDefault();
+          setIsPlaying(prev => {
+            const next = !prev;
+            const audio = audioRef.current;
+            if (audio && songUrl) {
+              if (next) audio.play().catch(() => {});
+              else audio.pause();
+            }
+            return next;
+          });
+          return;
+        }
+      }
+      if (e.key === "l" || e.key === "L") {
+        if (!ctrl && !e.shiftKey && !e.altKey) {
+          e.preventDefault();
+          const dur = songDuration || timelineData?.duration || 204;
+          setCurrentTime(t => Math.min(dur, t + 2));
+          return;
+        }
+      }
       // Arrow keys to nudge playhead
       if (e.key === "ArrowLeft") {
         e.preventDefault();
@@ -922,6 +965,15 @@ export default function EditorPage() {
   }, [loadState, id, timelineData?.timeline]);
 
   const duration = songDuration || timelineData?.duration || 204;
+
+  // Frame step callbacks for TransportControls buttons
+  const handleFrameBack = useCallback(() => {
+    setCurrentTime(t => Math.max(0, t - 1 / 30));
+  }, []);
+  const handleFrameForward = useCallback(() => {
+    setCurrentTime(t => Math.min(duration, t + 1 / 30));
+  }, [duration]);
+
   const beats = timelineData?.beats ?? MOCK_BEATS;
   const sections = timelineData?.sections ?? MOCK_SECTIONS;
   const clips = timelineData?.timeline ?? MOCK_CLIPS;
@@ -1277,6 +1329,8 @@ export default function EditorPage() {
             lyricsStyle={lyricsStyle}
             lyricsSize={lyricsSize}
             lyricsPosition={lyricsPosition}
+            onFrameBack={handleFrameBack}
+            onFrameForward={handleFrameForward}
           />
         </div>
 

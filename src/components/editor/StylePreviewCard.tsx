@@ -176,6 +176,7 @@ export function StylePreviewCard({
               src={preview.gifUrl}
               alt={`${styleMeta.label} preview`}
               className="w-full h-full object-cover"
+              loading="lazy"
               style={{ opacity: imgLoaded ? 1 : 0 }}
               onLoad={() => setImgLoaded(true)}
               onError={() => setImgError(true)}

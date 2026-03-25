@@ -9,6 +9,8 @@ import { BackgroundUploadProvider } from "@/contexts/BackgroundUploadContext";
 import { BackgroundUploadBar } from "@/components/upload/BackgroundUploadBar";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { RoutePrefetcher } from "@/components/layout/RoutePrefetcher";
 
 // ── Lazy-loaded pages ──────────────────────────────────────────────────────
 // Auth
@@ -84,8 +86,10 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <ErrorBoundary>
         <BrowserRouter>
           <ScrollToTop />
+          <RoutePrefetcher />
           <Suspense fallback={<RouteSpinner />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
@@ -129,6 +133,7 @@ const App = () => (
           </Suspense>
           <BackgroundUploadBar />
         </BrowserRouter>
+        </ErrorBoundary>
       </TooltipProvider>
       </BackgroundUploadProvider>
     </AuthProvider>

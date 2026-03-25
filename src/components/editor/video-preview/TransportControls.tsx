@@ -1,4 +1,4 @@
-import { Play, Pause } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 
 function formatTime(s: number): string {
@@ -14,6 +14,8 @@ interface TransportControlsProps {
   onPlayToggle?: () => void;
   onSeek: (time: number) => void;
   isMobile: boolean;
+  onFrameBack?: () => void;
+  onFrameForward?: () => void;
 }
 
 export function TransportControls({
@@ -23,6 +25,8 @@ export function TransportControls({
   onPlayToggle,
   onSeek,
   isMobile,
+  onFrameBack,
+  onFrameForward,
 }: TransportControlsProps) {
   const [isSeekDragging, setIsSeekDragging] = useState(false);
   const [seekTooltipTime, setSeekTooltipTime] = useState<number | null>(null);
@@ -110,15 +114,37 @@ export function TransportControls({
         )}
       </div>
 
-      {/* Play/Pause + time display */}
+      {/* Play/Pause + frame step + time display */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={onPlayToggle}
-          className="text-foreground hover:text-primary transition-default p-1"
-          aria-label={isPlaying ? "Pause" : "Play"}
-        >
-          {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-0.5">
+          {!isMobile && onFrameBack && (
+            <button
+              onClick={onFrameBack}
+              className="text-foreground/60 hover:text-primary transition-default p-1"
+              aria-label="Back 1 frame"
+              title="Back 1 frame (,)"
+            >
+              <SkipBack className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            onClick={onPlayToggle}
+            className="text-foreground hover:text-primary transition-default p-1"
+            aria-label={isPlaying ? "Pause" : "Play"}
+          >
+            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+          </button>
+          {!isMobile && onFrameForward && (
+            <button
+              onClick={onFrameForward}
+              className="text-foreground/60 hover:text-primary transition-default p-1"
+              aria-label="Forward 1 frame"
+              title="Forward 1 frame (.)"
+            >
+              <SkipForward className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
         <span className="text-[11px] font-mono text-foreground/60 tabular-nums">
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>

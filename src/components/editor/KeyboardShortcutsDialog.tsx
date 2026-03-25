@@ -19,6 +19,11 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Playback",
     shortcuts: [
       { keys: ["Space"], description: "Play / Pause" },
+      { keys: [","], description: "Back 1 frame" },
+      { keys: ["."], description: "Forward 1 frame" },
+      { keys: ["J"], description: "Back 2 seconds" },
+      { keys: ["K"], description: "Play / Pause" },
+      { keys: ["L"], description: "Forward 2 seconds" },
       { keys: ["←"], description: "Back 1 second" },
       { keys: ["→"], description: "Forward 1 second" },
       { keys: ["Shift", "←"], description: "Back 5 seconds" },

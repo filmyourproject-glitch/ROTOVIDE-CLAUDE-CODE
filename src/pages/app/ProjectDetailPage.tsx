@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getMuxThumbnailUrl, getMuxAnimatedUrl } from "@/lib/muxThumbnails";
-import { ArrowLeft, Zap, Play, Film, HardDrive, Download, Loader2, AlertTriangle, ScanFace, Plus, Upload, MessageSquare, Check } from "lucide-react";
+import { ArrowLeft, Zap, Play, Film, HardDrive, Download, Loader2, AlertTriangle, ScanFace, Plus, Upload, MessageSquare, Check, Scissors, Clapperboard, Sparkles, Lock } from "lucide-react";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -11,6 +11,7 @@ function formatBytes(bytes: number) {
 import { Button } from "@/components/ui/button";
 
 import { SyncStatusBadge, FormatBadge, StyleBadge } from "@/components/projects/Badges";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -28,6 +29,14 @@ const tabs = ["Overview", "Clips", "B-Roll", "Captions", "Exports"] as const;
 
 /* BPM Modal removed — BPM is now auto-detected from the song audio during sync */
 
+/* ── Style options ── */
+const STYLE_OPTIONS = [
+  { value: "raw_cut", label: "Raw Cut", icon: Scissors, proOnly: false },
+  { value: "cinematic", label: "Cinematic", icon: Clapperboard, proOnly: true },
+  { value: "hype", label: "Hype", icon: Zap, proOnly: true },
+  { value: "vibe", label: "Vibe", icon: Sparkles, proOnly: true },
+] as const;
+
 /* ── Sync Status Card ── */
 function SyncStatusCard({
   status,
@@ -35,12 +44,20 @@ function SyncStatusCard({
   timelineData,
   perfCount = 0,
   brollCount = 0,
+  projectId,
+  currentStyle,
+  isPro,
+  onStyleChange,
 }: {
   status: SyncStatus;
   onSync?: () => void;
   timelineData?: any;
   perfCount?: number;
   brollCount?: number;
+  projectId?: string;
+  currentStyle?: string;
+  isPro?: boolean;
+  onStyleChange?: (style: string) => void;
 }) {
   if (status === "pending") {
     return (
@@ -145,9 +162,46 @@ function SyncStatusCard({
               <Button variant="outline" className="border-border w-full sm:w-auto" onClick={onSync}>
                 <Zap className="w-4 h-4 mr-2" /> Rebuild Timeline
               </Button>
-              <Button variant="outline" className="border-border w-full sm:w-auto">
-                Change Style
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="border-border w-full sm:w-auto">
+                    Change Style
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-56 p-2">
+                  <div className="space-y-1">
+                    {STYLE_OPTIONS.map((opt) => {
+                      const Icon = opt.icon;
+                      const isActive = currentStyle === opt.value;
+                      const locked = opt.proOnly && !isPro;
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            if (locked) {
+                              toast("Upgrade to Pro to unlock this style", { description: "Visit Billing to upgrade." });
+                              return;
+                            }
+                            onStyleChange?.(opt.value);
+                          }}
+                          className={cn(
+                            "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm transition-colors",
+                            isActive
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-foreground hover:bg-muted",
+                            locked && "opacity-50"
+                          )}
+                        >
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <span className="flex-1 text-left">{opt.label}</span>
+                          {locked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                          {isActive && <Check className="w-3.5 h-3.5 text-primary" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>
@@ -418,6 +472,7 @@ function AddFootageButton({ projectId, fileType, onComplete }: {
 export default function ProjectDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { isPro } = useAuth();
   const [activeTab, setActiveTab] = useState<typeof tabs[number]>("Overview");
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -510,6 +565,22 @@ export default function ProjectDetailPage() {
     return () => {
       supabase.removeChannel(channel);
     };
+  }, [id]);
+
+  // Handle style change
+  const handleStyleChange = useCallback(async (newStyle: string) => {
+    if (!id) return;
+    const label = STYLE_OPTIONS.find(o => o.value === newStyle)?.label ?? newStyle;
+    const { error } = await supabase
+      .from("projects")
+      .update({ style_preset: newStyle } as any)
+      .eq("id", id);
+    if (error) {
+      toast.error("Failed to update style.");
+      return;
+    }
+    setProject((prev: any) => ({ ...prev, style_preset: newStyle }));
+    toast.success(`Style changed to ${label}. Rebuild to apply.`);
   }, [id]);
 
   // Handle sync to beat — BPM is now auto-detected from audio
@@ -632,6 +703,10 @@ export default function ProjectDetailPage() {
         timelineData={timelineData}
         perfCount={mediaFiles.filter(f => f.file_type === "performance_clip").length}
         brollCount={mediaFiles.filter(f => f.file_type === "broll_clip").length}
+        projectId={id}
+        currentStyle={project?.style_preset || "raw_cut"}
+        isPro={isPro}
+        onStyleChange={handleStyleChange}
       />
 
       {/* Tabs */}

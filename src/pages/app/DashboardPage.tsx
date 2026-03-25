@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import { getMuxThumbnailUrl } from "@/lib/muxThumbnails";
 import { Film, Plus, ArrowRight, Loader2, Music, Video, Check, Scissors, MessageSquare, Crop, X, Zap, Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { storePendingFile } from "@/lib/pendingFileStore";
@@ -68,12 +69,18 @@ function ProjectCard({ project }: { project: Project }) {
     (async () => {
       const { data: clip } = await supabase
         .from("media_files")
-        .select("preview_image_path")
+        .select("preview_image_path, mux_playback_id")
         .eq("project_id", project.id)
         .not("preview_image_path", "is", null)
         .limit(1)
         .maybeSingle();
       if (cancelled) return;
+      // Prefer Mux CDN thumbnail (cached, resized) over Supabase signed URL
+      const muxId = (clip as any)?.mux_playback_id;
+      if (muxId) {
+        setThumbnailUrl(getMuxThumbnailUrl(muxId, { width: 400, fitMode: "smartcrop" }));
+        return;
+      }
       if (clip?.preview_image_path) {
         const { data: signed } = await supabase.storage
           .from("media")
@@ -91,7 +98,7 @@ function ProjectCard({ project }: { project: Project }) {
     >
       <div className="h-32 flex items-center justify-center bg-background">
         {thumbnailUrl ? (
-          <img src={thumbnailUrl} alt={project.name} className="w-full h-full object-cover" />
+          <img src={thumbnailUrl} alt={project.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <RotovideLogoMark size={40} />
         )}

@@ -53,6 +53,9 @@ interface VideoPreviewProps {
   activeEffects?: Effect[];
   activeTransition?: ActiveTransition | null;
   clipEnd?: number;
+  // Frame stepping
+  onFrameBack?: () => void;
+  onFrameForward?: () => void;
 }
 
 export function VideoPreview({
@@ -85,6 +88,8 @@ export function VideoPreview({
   activeEffects = [],
   activeTransition = null,
   clipEnd = 0,
+  onFrameBack,
+  onFrameForward,
 }: VideoPreviewProps) {
   // ── N-camera multicam architecture ──
   // One video element per unique performance camera, all playing simultaneously.
@@ -551,6 +556,8 @@ export function VideoPreview({
         onPlayToggle={onPlayToggle}
         onSeek={onSeek}
         isMobile={isMobile}
+        onFrameBack={onFrameBack}
+        onFrameForward={onFrameForward}
       />
     </div>
   );
