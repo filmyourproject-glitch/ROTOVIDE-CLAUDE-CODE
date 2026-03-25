@@ -1,6 +1,4 @@
-import type { FaceCrop } from "@/lib/faceDetection";
-import type { FaceKeyframe } from "@/lib/faceTracking";
-import { getFacePositionAtTime } from "@/lib/faceTracking";
+import { type FaceCrop, type FaceKeyframe, getFacePositionAtTime } from "@/lib/faceUtils";
 import type { CameraEntry } from "../VideoPreview";
 
 interface FaceTrackingBadgeProps {

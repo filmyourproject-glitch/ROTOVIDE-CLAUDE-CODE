@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, CheckCircle, X, Sparkles, Eye } from "lucide-react";
+import { Send, Loader2, CheckCircle, X, Sparkles, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Section, TimelineClip } from "@/types";
 import type { StylePreset } from "@/types";
 import type { EditManifest } from "@/lib/editManifest";
 import { getManifestStats } from "@/lib/manifestInterpreter";
+import { ManifestDiffSummary } from "./ManifestDiffSummary";
 
 interface Placement {
   beat_index: number;
@@ -55,6 +56,7 @@ export function DirectorChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [expandedPreview, setExpandedPreview] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Phase 5: Video indexing status
@@ -404,20 +406,49 @@ export function DirectorChat({
               >
                 {msg.content}
 
-                {/* Manifest-based APPLY button (preferred) */}
+                {/* Manifest-based PREVIEW + APPLY buttons */}
                 {msg.manifest && onApplyManifest && (
-                  <button
-                    onClick={() => onApplyManifest(msg.manifest!)}
-                    className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono w-full justify-center transition-colors"
-                    style={{
-                      background: "hsl(var(--primary) / 0.15)",
-                      color: "hsl(var(--primary))",
-                      border: "1px solid hsl(var(--primary) / 0.3)",
-                    }}
-                  >
-                    <CheckCircle className="w-3 h-3" />
-                    APPLY EDIT
-                  </button>
+                  <div className="mt-2 space-y-1.5">
+                    {/* Preview toggle */}
+                    <button
+                      onClick={() => setExpandedPreview((prev) => prev === i ? null : i)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono w-full justify-center transition-colors"
+                      style={{
+                        background: "hsl(0 0% 15%)",
+                        color: "hsl(var(--muted-foreground))",
+                        border: "1px solid hsl(0 0% 20%)",
+                      }}
+                    >
+                      {expandedPreview === i ? (
+                        <><EyeOff className="w-3 h-3" /> HIDE PREVIEW</>
+                      ) : (
+                        <><Eye className="w-3 h-3" /> PREVIEW CHANGES</>
+                      )}
+                    </button>
+
+                    {/* Inline diff summary */}
+                    {expandedPreview === i && (
+                      <ManifestDiffSummary
+                        currentClips={clips}
+                        manifest={msg.manifest}
+                        sections={sections}
+                      />
+                    )}
+
+                    {/* Apply button */}
+                    <button
+                      onClick={() => onApplyManifest(msg.manifest!)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono w-full justify-center transition-colors"
+                      style={{
+                        background: "hsl(var(--primary) / 0.15)",
+                        color: "hsl(var(--primary))",
+                        border: "1px solid hsl(var(--primary) / 0.3)",
+                      }}
+                    >
+                      <CheckCircle className="w-3 h-3" />
+                      APPLY EDIT
+                    </button>
+                  </div>
                 )}
 
                 {/* Legacy placements APPLY button (fallback when no manifest) */}

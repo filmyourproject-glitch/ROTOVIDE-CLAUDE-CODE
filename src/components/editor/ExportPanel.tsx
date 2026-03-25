@@ -140,19 +140,43 @@ export function ExportPanel({
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On panel open, recover any in-progress export for this project
+  // On panel open, recover any in-progress or stale export for this project
   useEffect(() => {
     if (!open || activeExportId) return;
     (async () => {
       const { data } = await supabase
         .from("exports")
-        .select("id, status, download_url")
+        .select("id, status, download_url, created_at")
         .eq("project_id", projectId)
-        .in("status", ["processing"])
+        .in("status", ["processing", "queued"])
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (data) {
+        // Check if a "queued" export is stale (>30 minutes old)
+        const STALE_THRESHOLD_MS = 30 * 60 * 1000;
+        const ageMs = Date.now() - new Date(data.created_at).getTime();
+
+        if (data.status === "queued" && ageMs > STALE_THRESHOLD_MS) {
+          // Mark stale queued export as failed so user sees retry button
+          await supabase
+            .from("exports")
+            .update({ status: "failed" })
+            .eq("id", data.id);
+          lastStatusRef.current = "failed";
+          setActiveExportId(data.id);
+          setExporting(false);
+          setRenderSteps([
+            { label: "Settings saved", status: "done" },
+            { label: "Render queued...", status: "error" },
+            { label: "Building your video...", status: "pending" },
+            { label: "Uploading to cloud...", status: "pending" },
+            { label: "Ready to download", status: "pending" },
+          ]);
+          return;
+        }
+
+        // Normal recovery for recent exports
         lastStatusRef.current = data.status;
         setActiveExportId(data.id);
         setExporting(true);
@@ -330,6 +354,41 @@ export function ExportPanel({
       } catch (err) {
         console.error("Failed to create export record:", err);
       }
+    }
+  };
+
+  const handleRetryExport = async () => {
+    if (!activeExportId) return;
+    lastStatusRef.current = null;
+    setExporting(true);
+    setDownloadUrl(null);
+    setProgressPercent(0);
+    setProgressStep("");
+    setEtaSeconds(null);
+    setRenderSteps([
+      { label: "Settings saved", status: "done" },
+      { label: "Render queued...", status: "active" },
+      { label: "Building your video...", status: "pending" },
+      { label: "Uploading to cloud...", status: "pending" },
+      { label: "Ready to download", status: "pending" },
+    ]);
+
+    // Reset the existing export row (no new credit deducted)
+    await supabase
+      .from("exports")
+      .update({ status: "queued", download_url: null, progress: null })
+      .eq("id", activeExportId);
+
+    // Re-trigger render
+    try {
+      await supabase.functions.invoke("trigger-render", {
+        body: { export_id: activeExportId, project_id: projectId, manifest_id: manifestId || null },
+      });
+      console.log("Retry triggered for export:", activeExportId);
+    } catch (err) {
+      console.error("Retry trigger failed:", err);
+      toast.error("Retry failed. Please try again.");
+      setExporting(false);
     }
   };
 
@@ -677,6 +736,22 @@ export function ExportPanel({
                       <Download className="w-4 h-4" />
                       Download Video
                     </a>
+                  </div>
+                )}
+
+                {/* Retry button when render has failed */}
+                {!exporting && renderSteps.some(s => s.status === "error") && activeExportId && (
+                  <div className="mt-3 space-y-2">
+                    <button
+                      onClick={handleRetryExport}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-destructive/30 text-destructive text-sm font-mono hover:bg-destructive/5 transition-colors"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      RETRY EXPORT
+                    </button>
+                    <p className="text-[10px] text-muted-foreground text-center font-mono">
+                      Uses the same export — no additional credit
+                    </p>
                   </div>
                 )}
               </div>

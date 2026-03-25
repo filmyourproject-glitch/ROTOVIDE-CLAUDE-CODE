@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBackgroundUploads } from "@/contexts/BackgroundUploadContext";
 import { extractPreviewFrame, estimateUploadTime } from "@/lib/proxyGenerator";
 import { uploadToMux } from "@/lib/muxUploader";
-import { extractFaceKeyframes, smoothKeyframes } from "@/lib/faceTracking";
+// faceTracking imported dynamically at call site to avoid bundling TensorFlow
 import { COLOR_GRADE_MAP, getColorGradeFilter } from "@/lib/colorGrades";
 import { ColorGradeSwatches } from "@/components/color-grade/ColorGradeSwatches";
 import { ColorGradeIntensitySlider } from "@/components/color-grade/ColorGradeIntensitySlider";
@@ -517,6 +517,7 @@ export default function NewProjectPage() {
           if (fileType === "performance_clip" && muxData.mediaFileId) {
             setter(prev => prev.map(c => c.id === id ? { ...c, status: "complete" as UploadStatus, progress: 96, label: "Tracking faces…" } : c));
             try {
+              const { extractFaceKeyframes, smoothKeyframes } = await import("@/lib/faceTracking");
               const rawKeyframes = await extractFaceKeyframes(file, (pct) => {
                 setter(prev => prev.map(c => c.id === id
                   ? { ...c, label: `Tracking faces… ${pct}%` }

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,27 +9,43 @@ import { BackgroundUploadProvider } from "@/contexts/BackgroundUploadContext";
 import { BackgroundUploadBar } from "@/components/upload/BackgroundUploadBar";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
-import LoginPage from "@/pages/auth/LoginPage";
-import SignupPage from "@/pages/auth/SignupPage";
-import CheckEmailPage from "@/pages/auth/CheckEmailPage";
-import VerifyPage from "@/pages/auth/VerifyPage";
-import VerifiedPage from "@/pages/auth/VerifiedPage";
-import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
-import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
-import DashboardPage from "@/pages/app/DashboardPage";
-import ProjectsPage from "@/pages/app/ProjectsPage";
-import NewProjectPage from "@/pages/app/NewProjectPage";
-import ProjectDetailPage from "@/pages/app/ProjectDetailPage";
-import EditorPage from "@/pages/app/EditorPage";
-import StoragePage from "@/pages/app/StoragePage";
-import BillingPage from "@/pages/app/BillingPage";
-import SettingsPage from "@/pages/app/SettingsPage";
-import LongToShortsPage from "@/pages/app/LongToShortsPage";
-import CaptionsPage from "@/pages/app/CaptionsPage";
-import NotFound from "@/pages/NotFound";
-import LandingPage from "@/pages/LandingPage";
-import PricingPage from "@/pages/PricingPage";
-import WaitlistPage from "@/pages/admin/WaitlistPage";
+
+// ── Lazy-loaded pages ──────────────────────────────────────────────────────
+// Auth
+const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
+const SignupPage = lazy(() => import("@/pages/auth/SignupPage"));
+const CheckEmailPage = lazy(() => import("@/pages/auth/CheckEmailPage"));
+const VerifyPage = lazy(() => import("@/pages/auth/VerifyPage"));
+const VerifiedPage = lazy(() => import("@/pages/auth/VerifiedPage"));
+const ForgotPasswordPage = lazy(() => import("@/pages/auth/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/auth/ResetPasswordPage"));
+
+// App
+const DashboardPage = lazy(() => import("@/pages/app/DashboardPage"));
+const ProjectsPage = lazy(() => import("@/pages/app/ProjectsPage"));
+const NewProjectPage = lazy(() => import("@/pages/app/NewProjectPage"));
+const ProjectDetailPage = lazy(() => import("@/pages/app/ProjectDetailPage"));
+const EditorPage = lazy(() => import("@/pages/app/EditorPage"));
+const StoragePage = lazy(() => import("@/pages/app/StoragePage"));
+const BillingPage = lazy(() => import("@/pages/app/BillingPage"));
+const SettingsPage = lazy(() => import("@/pages/app/SettingsPage"));
+const LongToShortsPage = lazy(() => import("@/pages/app/LongToShortsPage"));
+const CaptionsPage = lazy(() => import("@/pages/app/CaptionsPage"));
+
+// Public + admin
+const LandingPage = lazy(() => import("@/pages/LandingPage"));
+const PricingPage = lazy(() => import("@/pages/PricingPage"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
+const WaitlistPage = lazy(() => import("@/pages/admin/WaitlistPage"));
+
+// ── Route loading spinner ──────────────────────────────────────────────────
+function RouteSpinner() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 const queryClient = new QueryClient();
 
@@ -70,6 +86,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <ScrollToTop />
+          <Suspense fallback={<RouteSpinner />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/pricing" element={<PricingPage />} />
@@ -109,6 +126,7 @@ const App = () => (
 
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
           <BackgroundUploadBar />
         </BrowserRouter>
       </TooltipProvider>

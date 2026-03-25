@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { RotovideLogo } from "@/components/ui/RotovideLogo";
 
-export default function StepWelcome({ onNext }: { onNext: () => void }) {
+export default function StepWelcome({ onNext, onSkip }: { onNext: () => void; onSkip?: () => void }) {
   const { credits } = useAuth();
 
   return (
@@ -11,7 +11,7 @@ export default function StepWelcome({ onNext }: { onNext: () => void }) {
 
       {/* X button — always visible escape hatch */}
       <button
-        onClick={onNext}
+        onClick={onSkip ?? onNext}
         className="absolute -top-2 right-0 p-2 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted"
         aria-label="Skip onboarding"
       >
@@ -41,7 +41,7 @@ export default function StepWelcome({ onNext }: { onNext: () => void }) {
       </Button>
 
       <button
-        onClick={onNext}
+        onClick={onSkip ?? onNext}
         className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
       >
         Skip for now

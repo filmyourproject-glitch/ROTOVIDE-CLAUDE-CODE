@@ -9,7 +9,7 @@ import { useCreditSystem } from "@/hooks/useCreditSystem";
 import { ExportConfirmModal } from "@/components/credits/ExportConfirmModal";
 import { TopupModal } from "@/components/credits/TopupModal";
 import { uploadToMux } from "@/lib/muxUploader";
-import { extractFaceKeyframes, smoothKeyframes } from "@/lib/faceTracking";
+// faceTracking imported dynamically at call site to avoid bundling TensorFlow
 import { toast } from "sonner";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -124,10 +124,11 @@ export default function LongToShortsPage() {
       const blob = await response.blob();
       const file = new File([blob], "youtube-import.mp4", { type: "video/mp4" });
       
+      const { extractFaceKeyframes, smoothKeyframes } = await import("@/lib/faceTracking");
       const keyframes = await extractFaceKeyframes(file, (pct) => {
         setFaceTrackingProgress(pct);
       });
-      
+
       const smoothed = smoothKeyframes(keyframes);
       
       // Save to database

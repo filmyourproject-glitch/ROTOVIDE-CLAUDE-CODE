@@ -5,21 +5,24 @@ import { Button } from "@/components/ui/button";
 import { VideoPreview } from "@/components/editor/VideoPreview";
 import { Timeline } from "@/components/editor/Timeline";
 import { EditorControlPanel } from "@/components/editor/EditorControlPanel";
-import { ExportPanel } from "@/components/editor/ExportPanel";
-import { DirectorChat } from "@/components/editor/DirectorChat";
 import { EditingToolbar, type EditTool } from "@/components/editor/EditingToolbar";
 import { MobilePanelSheet, type TabId } from "@/components/editor/MobilePanelSheet";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useTimelineHistory } from "@/hooks/useTimelineHistory";
-import { StyleComparisonPanel } from "@/components/editor/StyleComparisonPanel";
 import { KeyboardShortcutsDialog } from "@/components/editor/KeyboardShortcutsDialog";
+
+import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import type { EditManifest } from "@/lib/editManifest";
 import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+
+// Lazy-loaded slide-out panels (only loaded when opened)
+const ExportPanel = lazy(() => import("@/components/editor/ExportPanel").then(m => ({ default: m.ExportPanel })));
+const DirectorChat = lazy(() => import("@/components/editor/DirectorChat").then(m => ({ default: m.DirectorChat })));
+const StyleComparisonPanel = lazy(() => import("@/components/editor/StyleComparisonPanel").then(m => ({ default: m.StyleComparisonPanel })));
 import { supabase } from "@/integrations/supabase/client";
 import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section, Effect } from "@/types";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
-import { loadFaceModel, detectFaceFromUrl, type FaceCrop } from "@/lib/faceDetection";
+import type { FaceCrop } from "@/lib/faceUtils";
 import { computeBangerScore } from "@/lib/audioAnalyzer";
 import { getMuxThumbnailUrl } from "@/lib/muxThumbnails";
 import { ensureFirstClipIsPerformance } from "@/lib/beatSyncEngine";
@@ -258,6 +261,10 @@ export default function EditorPage() {
     setActiveManifest(manifest);
     setDirectorChatOpen(false);
     setStyleCompOpen(false);
+
+    // Undo hint toast (Phase 8)
+    const isMac = navigator.platform.includes("Mac");
+    toast(`Edit applied — press ${isMac ? "⌘Z" : "Ctrl+Z"} to undo`, { duration: 4000 });
   }, [timelineData, clips, updateTimelineWithHistory]);
 
   // ── Keyboard Shortcuts ──
@@ -779,7 +786,8 @@ export default function EditorPage() {
 
       setTimeout(() => {
         if (previewUrlsForDetection.length > 0) {
-          loadFaceModel().then(async () => {
+          import("@/lib/faceDetection").then(async ({ loadFaceModel, detectFaceFromUrl }) => {
+            await loadFaceModel();
             for (const { id: cId, url } of previewUrlsForDetection) {
               const crop = await detectFaceFromUrl(url);
               setFaceCrops(prev => ({ ...prev, [cId]: crop }));
@@ -1344,51 +1352,63 @@ export default function EditorPage() {
         </MobilePanelSheet>
       )}
 
-      {/* Director Chat */}
-      <DirectorChat
-        open={directorChatOpen}
-        onClose={() => setDirectorChatOpen(false)}
-        projectId={id!}
-        bpm={timelineData?.bpm || project?.bpm || 140}
-        songDuration={duration}
-        stylePreset={stylePreset}
-        sections={sections}
-        clips={clips}
-        beats={beats}
-        onApplyPlacements={handleApplyPlacements}
-        onApplyManifest={handleApplyManifest}
-        activeManifest={activeManifest}
-      />
+      {/* Director Chat (lazy) */}
+      {directorChatOpen && (
+        <Suspense fallback={null}>
+          <DirectorChat
+            open={directorChatOpen}
+            onClose={() => setDirectorChatOpen(false)}
+            projectId={id!}
+            bpm={timelineData?.bpm || project?.bpm || 140}
+            songDuration={duration}
+            stylePreset={stylePreset}
+            sections={sections}
+            clips={clips}
+            beats={beats}
+            onApplyPlacements={handleApplyPlacements}
+            onApplyManifest={handleApplyManifest}
+            activeManifest={activeManifest}
+          />
+        </Suspense>
+      )}
 
-      {/* Style Comparison */}
-      <StyleComparisonPanel
-        open={styleCompOpen}
-        onClose={() => setStyleCompOpen(false)}
-        projectId={id!}
-        bpm={timelineData?.bpm || project?.bpm || 140}
-        songDuration={duration}
-        sections={sections}
-        clips={clips}
-        beats={beats}
-        onApplyManifest={handleApplyManifest}
-        clipMeta={clipMeta}
-      />
+      {/* Style Comparison (lazy) */}
+      {styleCompOpen && (
+        <Suspense fallback={null}>
+          <StyleComparisonPanel
+            open={styleCompOpen}
+            onClose={() => setStyleCompOpen(false)}
+            projectId={id!}
+            bpm={timelineData?.bpm || project?.bpm || 140}
+            songDuration={duration}
+            sections={sections}
+            clips={clips}
+            beats={beats}
+            onApplyManifest={handleApplyManifest}
+            clipMeta={clipMeta}
+          />
+        </Suspense>
+      )}
 
-      {/* Export Panel */}
-      <ExportPanel
-        open={exportPanelOpen}
-        onClose={() => setExportPanelOpen(false)}
-        projectId={id!}
-        songTitle={project?.song_title}
-        artistName={project?.artist_name}
-        sections={sections}
-        bpm={timelineData?.bpm || project?.bpm || 140}
-        isPro={isPro}
-        bangerStart={bangerResult?.startTime}
-        bangerEnd={bangerResult?.endTime}
-        hasLyrics={lyricsWords.length > 0}
-        manifestId={currentManifestId ?? undefined}
-      />
+      {/* Export Panel (lazy) */}
+      {exportPanelOpen && (
+        <Suspense fallback={null}>
+          <ExportPanel
+            open={exportPanelOpen}
+            onClose={() => setExportPanelOpen(false)}
+            projectId={id!}
+            songTitle={project?.song_title}
+            artistName={project?.artist_name}
+            sections={sections}
+            bpm={timelineData?.bpm || project?.bpm || 140}
+            isPro={isPro}
+            bangerStart={bangerResult?.startTime}
+            bangerEnd={bangerResult?.endTime}
+            hasLyrics={lyricsWords.length > 0}
+            manifestId={currentManifestId ?? undefined}
+          />
+        </Suspense>
+      )}
 
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />

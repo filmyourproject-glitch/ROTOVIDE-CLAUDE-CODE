@@ -17,4 +17,18 @@ export default defineConfig(() => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-hls": ["hls.js"],
+          "vendor-face": [
+            "@tensorflow/tfjs",
+            "@tensorflow-models/blazeface",
+          ],
+          "vendor-charts": ["recharts"],
+        },
+      },
+    },
+  },
 }));
