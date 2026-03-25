@@ -7,7 +7,16 @@
       "Bash(git commit:*)",
       "Bash(npm install:*)",
       "Bash(command -v:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(supabase migration:*)",
+      "Bash(npm run build:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(supabase db push:*)",
+      "Bash(find . -maxdepth 2 -type f ! -path \"*/node_modules/*\" ! -path \"*/.git/*\" ! -path \"*/dist/*\" -exec grep -l \"Phase\\\\|phase\\\\|roadmap\\\\|Roadmap\" {} ;)",
+      "Bash(grep:*)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(supabase secrets set:*)",
+      "Bash(git push:*)"
     ]
   }
 }
