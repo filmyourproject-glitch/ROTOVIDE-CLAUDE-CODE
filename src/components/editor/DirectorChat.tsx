@@ -16,7 +16,7 @@ interface Placement {
   effect: string;
 }
 
-interface ChatMessage {
+export interface ChatMessage {
   role: "user" | "director";
   content: string;
   placements?: Placement[];
@@ -37,6 +37,8 @@ interface DirectorChatProps {
   onApplyPlacements: (placements: Placement[]) => void;
   onApplyManifest?: (manifest: EditManifest) => void;
   activeManifest?: EditManifest | null;
+  initialMessages?: ChatMessage[];
+  onMessagesChange?: (msgs: ChatMessage[]) => void;
 }
 
 export function DirectorChat({
@@ -52,8 +54,10 @@ export function DirectorChat({
   onApplyPlacements,
   onApplyManifest,
   activeManifest,
+  initialMessages,
+  onMessagesChange,
 }: DirectorChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages?.length ? initialMessages : []);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [expandedPreview, setExpandedPreview] = useState<number | null>(null);
@@ -195,6 +199,12 @@ export function DirectorChat({
   useEffect(() => {
     if (!open || greetingSent.current) return;
 
+    // Skip greeting if we loaded persisted messages
+    if (initialMessages?.length) {
+      greetingSent.current = true;
+      return;
+    }
+
     // Wait until indexing status resolves from "checking"
     if (indexingStatus === "checking" || indexingStatus === "idle") return;
 
@@ -218,7 +228,7 @@ export function DirectorChat({
     ]);
   }, [open, indexingStatus, indexingProgress.total, bpm, clips, activeManifest]);
 
-  // Reset greeting flag when chat closes
+  // Reset greeting flag when chat closes (only reset messages if no persistence)
   useEffect(() => {
     if (!open) {
       greetingSent.current = false;
@@ -228,6 +238,15 @@ export function DirectorChat({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Debounced persistence of chat messages
+  useEffect(() => {
+    if (!onMessagesChange || messages.length === 0) return;
+    const timer = setTimeout(() => {
+      onMessagesChange(messages);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [messages, onMessagesChange]);
 
   const sendMessage = async () => {
     const msg = input.trim();

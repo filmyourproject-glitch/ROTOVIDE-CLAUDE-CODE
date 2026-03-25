@@ -9,7 +9,7 @@ import { type FaceCrop, getSmartCropPosition, getFacePositionAtTime, type FaceKe
 import { LyricsCaptionOverlay } from "./LyricsCaptionOverlay";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
 import { TransportControls } from "./video-preview/TransportControls";
-import { FaceTrackingBadge, WatermarkOverlay } from "./video-preview/VideoOverlays";
+import { FaceTrackingBadge, WatermarkOverlay, ActiveCameraBadge } from "./video-preview/VideoOverlays";
 import { EffectOverlay, type ActiveTransition } from "./video-preview/EffectOverlay";
 import type { Effect } from "@/types";
 
@@ -17,6 +17,7 @@ export interface CameraEntry {
   url: string;
   xcorrOffset: number;
   syncConfidence?: number;
+  fileName?: string;
 }
 
 interface VideoPreviewProps {
@@ -56,6 +57,11 @@ interface VideoPreviewProps {
   // Frame stepping
   onFrameBack?: () => void;
   onFrameForward?: () => void;
+  // Volume
+  volume?: number;
+  onVolumeChange?: (v: number) => void;
+  muted?: boolean;
+  onMuteToggle?: () => void;
 }
 
 export function VideoPreview({
@@ -90,6 +96,10 @@ export function VideoPreview({
   clipEnd = 0,
   onFrameBack,
   onFrameForward,
+  volume,
+  onVolumeChange,
+  muted,
+  onMuteToggle,
 }: VideoPreviewProps) {
   // ── N-camera multicam architecture ──
   // One video element per unique performance camera, all playing simultaneously.
@@ -404,6 +414,7 @@ export function VideoPreview({
             </div>
           )}
           {showFaceBadge && <FaceTrackingBadge {...overlayProps} />}
+          <ActiveCameraBadge activeCameraId={activeCameraId} isBroll={!!brollUrl && !activeCameraId} cameraRegistry={cameraRegistry} />
           <WatermarkOverlay showWatermark={showWatermark} />
           <LyricsCaptionOverlay
             words={lyricsWords} currentTime={currentTime} visible={lyricsVisible}
@@ -557,6 +568,10 @@ export function VideoPreview({
         onSeek={onSeek}
         isMobile={isMobile}
         onFrameBack={onFrameBack}
+        volume={volume}
+        onVolumeChange={onVolumeChange}
+        muted={muted}
+        onMuteToggle={onMuteToggle}
         onFrameForward={onFrameForward}
       />
     </div>

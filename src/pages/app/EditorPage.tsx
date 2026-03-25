@@ -94,6 +94,8 @@ export default function EditorPage() {
   const [songUrl, setSongUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const repairRanRef = useRef(false);
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
 
   // Editing toolbar state
   const [activeTool, setActiveTool] = useState<EditTool>("select");
@@ -102,6 +104,7 @@ export default function EditorPage() {
   const [timelineExpanded, setTimelineExpanded] = useState(false);
   const [exportPanelOpen, setExportPanelOpen] = useState(false);
   const [directorChatOpen, setDirectorChatOpen] = useState(false);
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [styleCompOpen, setStyleCompOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [currentManifestId, setCurrentManifestId] = useState<string | null>(null);
@@ -335,6 +338,11 @@ export default function EditorPage() {
         setShortcutsOpen(true);
         return;
       }
+      // Mute toggle
+      if ((e.key === "m" || e.key === "M") && !ctrl && !e.shiftKey && !e.altKey) {
+        handleMuteToggle();
+        return;
+      }
       // Frame stepping: , (back 1 frame) . (forward 1 frame)
       if (e.key === "," && !ctrl && !e.shiftKey) {
         e.preventDefault();
@@ -393,7 +401,7 @@ export default function EditorPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedClipId, handleUndo, handleRedo, deleteClip, duplicateClip, splitClipAtPlayhead, songDuration, songUrl, timelineData?.duration]);
+  }, [selectedClipId, handleUndo, handleRedo, deleteClip, duplicateClip, splitClipAtPlayhead, songDuration, songUrl, timelineData?.duration, handleMuteToggle]);
 
   // ── Toolbar action handler ──
   const handleToolbarAction = useCallback((action: "duplicate" | "delete" | "undo" | "redo") => {
@@ -432,6 +440,12 @@ export default function EditorPage() {
       setFormat(p.format);
       setTrimStart(p.trim_start ?? 0);
       setTrimEnd(p.trim_end ?? null);
+
+      // Load persisted Director Chat history
+      const savedChat = (p as any).director_chat_history;
+      if (Array.isArray(savedChat) && savedChat.length > 0) {
+        setChatHistory(savedChat);
+      }
 
       // Load lyrics data if available
       const lyricsData = (p as any).lyrics_data;
@@ -974,6 +988,34 @@ export default function EditorPage() {
     setCurrentTime(t => Math.min(duration, t + 1 / 30));
   }, [duration]);
 
+  // Volume controls
+  const handleMuteToggle = useCallback(() => setMuted(prev => !prev), []);
+  const handleVolumeChange = useCallback((v: number) => {
+    setVolume(v);
+    if (v > 0 && muted) setMuted(false);
+  }, [muted]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = volume;
+    audio.muted = muted;
+  }, [volume, muted]);
+
+  // Persist Director Chat messages to DB
+  const handleChatHistoryChange = useCallback((msgs: any[]) => {
+    setChatHistory(msgs);
+    if (id) {
+      // Strip manifest/placements to keep JSONB small — only persist role + content
+      const slim = msgs.map((m: any) => ({ role: m.role, content: m.content }));
+      supabase
+        .from("projects")
+        .update({ director_chat_history: slim } as any)
+        .eq("id", id)
+        .then(({ error }) => { if (error) console.error("Chat persist error:", error); });
+    }
+  }, [id]);
+
   const beats = timelineData?.beats ?? MOCK_BEATS;
   const sections = timelineData?.sections ?? MOCK_SECTIONS;
   const clips = timelineData?.timeline ?? MOCK_CLIPS;
@@ -1045,6 +1087,7 @@ export default function EditorPage() {
       registry[clip.clip_id] = {
         url: meta.url,
         xcorrOffset: meta.xcorrOffset ?? 0,
+        fileName: meta.fileName,
       };
     }
     return registry;
@@ -1331,6 +1374,10 @@ export default function EditorPage() {
             lyricsPosition={lyricsPosition}
             onFrameBack={handleFrameBack}
             onFrameForward={handleFrameForward}
+            volume={volume}
+            onVolumeChange={handleVolumeChange}
+            muted={muted}
+            onMuteToggle={handleMuteToggle}
           />
         </div>
 
@@ -1422,6 +1469,8 @@ export default function EditorPage() {
             onApplyPlacements={handleApplyPlacements}
             onApplyManifest={handleApplyManifest}
             activeManifest={activeManifest}
+            initialMessages={chatHistory.length > 0 ? chatHistory : undefined}
+            onMessagesChange={handleChatHistoryChange}
           />
         </Suspense>
       )}

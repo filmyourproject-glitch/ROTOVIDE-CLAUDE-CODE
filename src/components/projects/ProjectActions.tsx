@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MoreHorizontal, Archive, Trash2, RotateCcw } from "lucide-react";
+import { MoreHorizontal, Archive, Trash2, RotateCcw, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -18,6 +18,14 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 /* ── Delete Confirmation ── */
 export function DeleteConfirmSheet({
@@ -93,10 +101,12 @@ export function DeleteConfirmSheet({
 export function ProjectActionsMenu({
   projectId,
   projectStatus,
+  projectName,
   onStatusChange,
 }: {
   projectId: string;
   projectStatus: string;
+  projectName?: string;
   onStatusChange?: () => void;
 }) {
   const { user } = useAuth();
@@ -105,6 +115,28 @@ export function ProjectActionsMenu({
   const [showActions, setShowActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showRename, setShowRename] = useState(false);
+  const [newName, setNewName] = useState(projectName || "");
+  const [renaming, setRenaming] = useState(false);
+
+  const handleRename = async () => {
+    if (!user || !newName.trim()) return;
+    setRenaming(true);
+    const { error } = await supabase
+      .from("projects")
+      .update({ name: newName.trim() })
+      .eq("id", projectId)
+      .eq("user_id", user.id);
+    setRenaming(false);
+    if (error) {
+      toast.error("Failed to rename project.");
+    } else {
+      toast.success("Project renamed.");
+      setShowRename(false);
+      if (onStatusChange) onStatusChange();
+      else window.location.reload();
+    }
+  };
 
   const handleArchive = async () => {
     if (!user) return;
@@ -153,6 +185,14 @@ export function ProjectActionsMenu({
   const menuItems = (
     <>
       <button
+        onClick={() => { setShowActions(false); setNewName(projectName || ""); setShowRename(true); }}
+        className="flex items-center gap-3 w-full px-4 text-left font-medium transition-colors hover:bg-accent/50"
+        style={{ height: 56, fontSize: 15, fontFamily: "'DM Sans', sans-serif", color: '#F2EDE4' }}
+      >
+        <Pencil className="w-4 h-4" />
+        Rename
+      </button>
+      <button
         onClick={handleArchive}
         className="flex items-center gap-3 w-full px-4 text-left font-medium transition-colors hover:bg-accent/50"
         style={{ height: 56, fontSize: 15, fontFamily: "'DM Sans', sans-serif", color: '#F2EDE4' }}
@@ -192,9 +232,33 @@ export function ProjectActionsMenu({
           </DrawerContent>
         </Drawer>
         <DeleteConfirmSheet open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm} onConfirm={handleDelete} loading={deleting} />
+        <RenameDialog />
       </>
     );
   }
+
+  const RenameDialog = () => (
+    <Dialog open={showRename} onOpenChange={setShowRename}>
+      <DialogContent className="max-w-sm" style={{ background: "hsl(0 0% 5.1%)", border: "1px solid hsl(var(--border))" }}>
+        <DialogHeader>
+          <DialogTitle className="text-foreground">Rename Project</DialogTitle>
+        </DialogHeader>
+        <Input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && newName.trim()) handleRename(); }}
+          placeholder="Project name"
+          autoFocus
+        />
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="ghost" onClick={() => setShowRename(false)} disabled={renaming}>Cancel</Button>
+          <Button onClick={handleRename} disabled={!newName.trim() || renaming}>
+            {renaming ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   return (
     <>
@@ -205,6 +269,10 @@ export function ProjectActionsMenu({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => { setNewName(projectName || ""); setShowRename(true); }}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Rename
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleArchive}>
             {isArchived ? <RotateCcw className="w-4 h-4 mr-2" /> : <Archive className="w-4 h-4 mr-2" />}
             {isArchived ? "Restore Project" : "Archive Project"}
@@ -219,6 +287,7 @@ export function ProjectActionsMenu({
         </DropdownMenuContent>
       </DropdownMenu>
       <DeleteConfirmSheet open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm} onConfirm={handleDelete} loading={deleting} />
+      <RenameDialog />
     </>
   );
 }

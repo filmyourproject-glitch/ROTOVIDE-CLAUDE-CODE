@@ -61,36 +61,7 @@ function ToolIcon({ tool }: { tool: Tool }) {
 }
 
 /* ─── Project Card ─── */
-function ProjectCard({ project }: { project: Project }) {
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data: clip } = await supabase
-        .from("media_files")
-        .select("preview_image_path, mux_playback_id")
-        .eq("project_id", project.id)
-        .not("preview_image_path", "is", null)
-        .limit(1)
-        .maybeSingle();
-      if (cancelled) return;
-      // Prefer Mux CDN thumbnail (cached, resized) over Supabase signed URL
-      const muxId = (clip as any)?.mux_playback_id;
-      if (muxId) {
-        setThumbnailUrl(getMuxThumbnailUrl(muxId, { width: 400, fitMode: "smartcrop" }));
-        return;
-      }
-      if (clip?.preview_image_path) {
-        const { data: signed } = await supabase.storage
-          .from("media")
-          .createSignedUrl(clip.preview_image_path, 3600);
-        if (!cancelled && signed?.signedUrl) setThumbnailUrl(signed.signedUrl);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [project.id]);
-
+function ProjectCard({ project, thumbnailUrl }: { project: Project; thumbnailUrl?: string | null }) {
   return (
     <Link
       to={`/app/projects/${project.id}`}
@@ -504,6 +475,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [startingTrial, setStartingTrial] = useState(false);
+  const [thumbnailMap, setThumbnailMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -524,6 +496,59 @@ export default function DashboardPage() {
     fetchProjects();
     return () => { cancelled = true; };
   }, [user]);
+
+  // Batch-fetch thumbnails for all visible projects (fixes N+1 query)
+  useEffect(() => {
+    if (!projects.length) return;
+    let cancelled = false;
+    const projectIds = projects.slice(0, 6).map((p) => p.id);
+    (async () => {
+      const { data: clips } = await supabase
+        .from("media_files")
+        .select("project_id, preview_image_path, mux_playback_id")
+        .in("project_id", projectIds)
+        .not("preview_image_path", "is", null);
+      if (cancelled || !clips?.length) return;
+
+      // Deduplicate: keep first clip per project
+      const byProject = new Map<string, { preview_image_path: string; mux_playback_id?: string }>();
+      for (const c of clips) {
+        if (!byProject.has(c.project_id)) {
+          byProject.set(c.project_id, c as any);
+        }
+      }
+
+      const map: Record<string, string> = {};
+      const needSigning: { projectId: string; path: string }[] = [];
+
+      for (const [pid, clip] of byProject) {
+        const muxId = (clip as any).mux_playback_id;
+        if (muxId) {
+          map[pid] = getMuxThumbnailUrl(muxId, { width: 400, fitMode: "smartcrop" });
+        } else if (clip.preview_image_path) {
+          needSigning.push({ projectId: pid, path: clip.preview_image_path });
+        }
+      }
+
+      // Batch-sign remaining Supabase storage paths
+      if (needSigning.length) {
+        const results = await Promise.all(
+          needSigning.map((s) =>
+            supabase.storage.from("media").createSignedUrl(s.path, 3600).then((r) => ({
+              projectId: s.projectId,
+              url: r.data?.signedUrl ?? null,
+            }))
+          )
+        );
+        for (const r of results) {
+          if (r.url) map[r.projectId] = r.url;
+        }
+      }
+
+      if (!cancelled) setThumbnailMap(map);
+    })();
+    return () => { cancelled = true; };
+  }, [projects]);
 
   const isOnTrial = profile?.trial_ends_at && new Date(profile.trial_ends_at) > new Date();
   const canStartTrial = profile && !profile.trial_used;
@@ -651,7 +676,7 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {projects.slice(0, 6).map((p) => (
-              <ProjectCard key={p.id} project={p} />
+              <ProjectCard key={p.id} project={p} thumbnailUrl={thumbnailMap[p.id] ?? null} />
             ))}
           </div>
         )}

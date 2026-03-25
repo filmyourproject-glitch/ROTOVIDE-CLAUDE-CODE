@@ -1,4 +1,5 @@
-import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 import { useState, useRef, useCallback } from "react";
 
 function formatTime(s: number): string {
@@ -16,6 +17,10 @@ interface TransportControlsProps {
   isMobile: boolean;
   onFrameBack?: () => void;
   onFrameForward?: () => void;
+  volume?: number;
+  onVolumeChange?: (v: number) => void;
+  muted?: boolean;
+  onMuteToggle?: () => void;
 }
 
 export function TransportControls({
@@ -27,6 +32,10 @@ export function TransportControls({
   isMobile,
   onFrameBack,
   onFrameForward,
+  volume = 1,
+  onVolumeChange,
+  muted = false,
+  onMuteToggle,
 }: TransportControlsProps) {
   const [isSeekDragging, setIsSeekDragging] = useState(false);
   const [seekTooltipTime, setSeekTooltipTime] = useState<number | null>(null);
@@ -114,7 +123,7 @@ export function TransportControls({
         )}
       </div>
 
-      {/* Play/Pause + frame step + time display */}
+      {/* Play/Pause + frame step + volume + time display */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-0.5">
           {!isMobile && onFrameBack && (
@@ -145,6 +154,34 @@ export function TransportControls({
             </button>
           )}
         </div>
+
+        {/* Volume controls */}
+        <div className="flex items-center gap-1">
+          {onMuteToggle && (
+            <button
+              onClick={onMuteToggle}
+              className="text-foreground/60 hover:text-primary transition-default p-1"
+              aria-label={muted ? "Unmute" : "Mute"}
+              title={muted ? "Unmute (M)" : "Mute (M)"}
+            >
+              {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+          )}
+          {!isMobile && onVolumeChange && (
+            <Slider
+              value={[muted ? 0 : Math.round(volume * 100)]}
+              min={0}
+              max={100}
+              step={1}
+              onValueChange={([v]) => {
+                onVolumeChange(v / 100);
+                if (v > 0 && muted && onMuteToggle) onMuteToggle();
+              }}
+              className="w-[72px]"
+            />
+          )}
+        </div>
+
         <span className="text-[11px] font-mono text-foreground/60 tabular-nums">
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>

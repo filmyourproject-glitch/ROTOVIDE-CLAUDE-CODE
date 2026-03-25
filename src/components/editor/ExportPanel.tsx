@@ -726,7 +726,7 @@ export function ExportPanel({
 
                 {/* Download button when render is complete */}
                 {downloadUrl && !exporting && renderSteps.every(s => s.status === "done") && (
-                  <div className="mt-4">
+                  <div className="mt-4 space-y-2">
                     <a
                       href={downloadUrl}
                       target="_blank"
@@ -736,6 +736,16 @@ export function ExportPanel({
                       <Download className="w-4 h-4" />
                       Download Video
                     </a>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(downloadUrl);
+                        toast.success("Download link copied!");
+                      }}
+                      className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-muted-foreground text-xs font-mono hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy Download Link
+                    </button>
                   </div>
                 )}
 

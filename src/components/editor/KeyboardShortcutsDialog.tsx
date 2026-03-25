@@ -28,6 +28,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["→"], description: "Forward 1 second" },
       { keys: ["Shift", "←"], description: "Back 5 seconds" },
       { keys: ["Shift", "→"], description: "Forward 5 seconds" },
+      { keys: ["M"], description: "Mute / Unmute" },
     ],
   },
   {

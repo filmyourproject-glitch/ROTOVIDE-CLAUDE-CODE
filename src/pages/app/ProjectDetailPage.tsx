@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getMuxThumbnailUrl, getMuxAnimatedUrl } from "@/lib/muxThumbnails";
-import { ArrowLeft, Zap, Play, Film, HardDrive, Download, Loader2, AlertTriangle, ScanFace, Plus, Upload, MessageSquare, Check, Scissors, Clapperboard, Sparkles, Lock } from "lucide-react";
+import { ArrowLeft, Zap, Play, Film, HardDrive, Download, Loader2, AlertTriangle, ScanFace, Plus, Upload, MessageSquare, Check, Scissors, Clapperboard, Sparkles, Lock, Link2 } from "lucide-react";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 
 import { SyncStatusBadge, FormatBadge, StyleBadge } from "@/components/projects/Badges";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -468,6 +469,77 @@ function AddFootageButton({ projectId, fileType, onComplete }: {
   );
 }
 
+/* ── YouTube Import Button ── */
+function YouTubeImportButton({ projectId, fileType, onComplete }: {
+  projectId: string;
+  fileType: "performance_clip" | "broll_clip";
+  onComplete: () => void;
+}) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  const ytRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{11}/;
+  const isValid = ytRegex.test(url.trim());
+
+  const handleImport = async () => {
+    if (!isValid || !user || importing) return;
+    setImporting(true);
+    try {
+      const { error } = await supabase.functions.invoke("youtube-ingest", {
+        body: { youtubeUrl: url.trim(), project_id: projectId, user_id: user.id, file_type: fileType },
+      });
+      if (error) throw error;
+      toast.success("YouTube import started! The clip will appear once processing completes.");
+      setUrl("");
+      setOpen(false);
+      onComplete();
+    } catch (err) {
+      console.error("YouTube import failed:", err);
+      toast.error("YouTube import failed. Check the URL and try again.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Link2 className="w-3.5 h-3.5" />
+          YouTube Import
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">Import from YouTube</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Paste a YouTube URL to import as a clip</p>
+        </div>
+        <Input
+          placeholder="https://youtube.com/watch?v=..."
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && isValid) handleImport(); }}
+        />
+        {url.trim().length > 0 && (
+          <p className={cn("text-xs", isValid ? "text-success" : "text-destructive")}>
+            {isValid ? "✓ Valid YouTube URL" : "✗ Invalid YouTube URL"}
+          </p>
+        )}
+        <Button
+          className="w-full"
+          size="sm"
+          disabled={!isValid || importing}
+          onClick={handleImport}
+        >
+          {importing ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> Importing…</> : "Import"}
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /* ── Main Page ── */
 export default function ProjectDetailPage() {
   const navigate = useNavigate();
@@ -482,6 +554,8 @@ export default function ProjectDetailPage() {
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [animatedUrls, setAnimatedUrls] = useState<Record<string, string>>({});
   const [refreshKey, setRefreshKey] = useState(0);
+  const [exports, setExports] = useState<any[]>([]);
+  const [exportsLoading, setExportsLoading] = useState(false);
 
   const syncStatus = (project?.sync_status || "pending") as SyncStatus;
   const timelineData = project?.timeline_data;
@@ -534,6 +608,25 @@ export default function ProjectDetailPage() {
       setLoading(false);
     })();
   }, [id, refreshKey]);
+
+  // Fetch exports when Exports tab is active
+  useEffect(() => {
+    if (activeTab !== "Exports" || !id) return;
+    let cancelled = false;
+    setExportsLoading(true);
+    (async () => {
+      const { data } = await supabase
+        .from("exports")
+        .select("id, status, format, download_url, created_at, watermarked, size_bytes")
+        .eq("project_id", id)
+        .order("created_at", { ascending: false });
+      if (!cancelled) {
+        setExports(data || []);
+        setExportsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, id]);
 
   // Realtime subscription for sync status updates
   useEffect(() => {
@@ -693,6 +786,7 @@ export default function ProjectDetailPage() {
         <ProjectActionsMenu
           projectId={id!}
           projectStatus={project?.status || "active"}
+          projectName={project?.name}
         />
       </div>
 
@@ -778,6 +872,7 @@ export default function ProjectDetailPage() {
             <div className="space-y-4">
               <div className="flex items-center gap-3 flex-wrap">
                 <AddFootageButton projectId={id!} fileType="performance_clip" onComplete={refreshMedia} />
+                <YouTubeImportButton projectId={id!} fileType="performance_clip" onComplete={refreshMedia} />
                 {perfClips.length > 0 && <ReanalyzeFacesButton projectId={id!} clips={perfClips} />}
               </div>
               {perfClips.length === 0 ? (
@@ -803,7 +898,10 @@ export default function ProjectDetailPage() {
           const brollClips = mediaFiles.filter(f => f.file_type === "broll_clip");
           return (
             <div className="space-y-4">
-              <AddFootageButton projectId={id!} fileType="broll_clip" onComplete={refreshMedia} />
+              <div className="flex items-center gap-3 flex-wrap">
+                <AddFootageButton projectId={id!} fileType="broll_clip" onComplete={refreshMedia} />
+                <YouTubeImportButton projectId={id!} fileType="broll_clip" onComplete={refreshMedia} />
+              </div>
               {brollClips.length === 0 ? (
                 <EmptyState icon={Upload} title="No B-roll yet" description="Add B-roll clips above to unlock AI placement." />
               ) : (
@@ -856,12 +954,79 @@ export default function ProjectDetailPage() {
           </div>
         )}
         {activeTab === "Exports" && (
-          <EmptyState
-            icon={Download}
-            title="No exports yet"
-            description="Sync your clips first then export"
-            action={<Button>Start New Export</Button>}
-          />
+          exportsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-5 h-5 text-primary animate-spin" />
+            </div>
+          ) : exports.length === 0 ? (
+            <EmptyState
+              icon={Download}
+              title="No exports yet"
+              description="Sync your clips first then export from the editor"
+              action={
+                syncStatus === "ready" ? (
+                  <Button onClick={() => navigate(`/app/projects/${id}/editor`)}>Open Editor</Button>
+                ) : (
+                  <Button disabled>Start New Export</Button>
+                )
+              }
+            />
+          ) : (
+            <div className="space-y-2">
+              {exports.map((exp) => {
+                const date = new Date(exp.created_at);
+                const statusColor = exp.status === "completed" ? "text-success" : exp.status === "processing" ? "text-primary" : "text-destructive";
+                const statusBg = exp.status === "completed" ? "bg-success/15" : exp.status === "processing" ? "bg-primary/15" : "bg-destructive/15";
+                return (
+                  <div key={exp.id} className="surface-card shadow-card p-4 flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wider", statusBg, statusColor)}>
+                          {exp.status}
+                        </span>
+                        {exp.format && (
+                          <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                            {exp.format}
+                          </span>
+                        )}
+                        {exp.watermarked && (
+                          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                            Watermarked
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1.5 font-mono">
+                        {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {exp.size_bytes ? ` · ${formatBytes(exp.size_bytes)}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {exp.download_url && (
+                        <>
+                          <a href={exp.download_url} target="_blank" rel="noopener noreferrer">
+                            <Button variant="outline" size="sm" className="gap-1.5">
+                              <Download className="w-3.5 h-3.5" /> Download
+                            </Button>
+                          </a>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => {
+                              navigator.clipboard.writeText(exp.download_url);
+                              toast.success("Download link copied!");
+                            }}
+                          >
+                            <Link2 className="w-3.5 h-3.5" /> Copy Link
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
     </div>

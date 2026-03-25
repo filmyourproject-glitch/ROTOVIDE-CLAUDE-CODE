@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Film, Search, MoreHorizontal, Archive, Trash2, RotateCcw } from "lucide-react";
+import { Plus, Film, Search, MoreHorizontal, Archive, Trash2, RotateCcw, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -10,6 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DeleteConfirmSheet, ProjectActionsMenu } from "@/components/projects/ProjectActions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import type { Project } from "@/types";
 
@@ -94,6 +101,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [sortBy, setSortBy] = useState<"created_at" | "last_activity_at" | "name" | "sync_status">("created_at");
 
   const fetchProjects = useCallback(async () => {
     if (!user) return;
@@ -145,14 +153,30 @@ export default function ProjectsPage() {
     }
   };
 
-  const filtered = projects.filter((p) => {
-    const matchesSearch =
-      (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (p.artist_name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (p.song_title || "").toLowerCase().includes(search.toLowerCase());
-    const matchesTab = tab === "all" || p.status === tab;
-    return matchesSearch && matchesTab;
-  });
+  const filtered = projects
+    .filter((p) => {
+      const matchesSearch =
+        (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.artist_name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.song_title || "").toLowerCase().includes(search.toLowerCase());
+      const matchesTab = tab === "all" || p.status === tab;
+      return matchesSearch && matchesTab;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "name":
+          return (a.name || "").localeCompare(b.name || "");
+        case "last_activity_at":
+          return new Date(b.last_activity_at || b.created_at).getTime() - new Date(a.last_activity_at || a.created_at).getTime();
+        case "sync_status": {
+          const order: Record<string, number> = { ready: 0, processing: 1, pending: 2, failed: 3 };
+          return (order[a.sync_status] ?? 4) - (order[b.sync_status] ?? 4);
+        }
+        case "created_at":
+        default:
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
 
   const renderRow = (p: Project) => {
     if (isMobile) {
@@ -211,7 +235,7 @@ export default function ProjectsPage() {
         </Link>
       </div>
 
-      {/* Search + Tabs */}
+      {/* Search + Sort + Tabs */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <div className="relative flex-1 max-w-sm w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -222,6 +246,18 @@ export default function ProjectsPage() {
             className="pl-9 bg-card"
           />
         </div>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+          <SelectTrigger className="w-[170px] bg-card">
+            <ArrowUpDown className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="created_at">Date Created</SelectItem>
+            <SelectItem value="last_activity_at">Last Activity</SelectItem>
+            <SelectItem value="name">Name (A-Z)</SelectItem>
+            <SelectItem value="sync_status">Sync Status</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="flex gap-1 bg-card rounded-lg p-1 border border-border">
           {tabs.map((t) => (
             <button
