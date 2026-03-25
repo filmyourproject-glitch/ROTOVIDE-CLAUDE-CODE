@@ -5,10 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { LogOut } from "lucide-react";
+import { LogOut, Loader2 } from "lucide-react";
 
 interface EmailPrefs {
   email_trial_expiry: boolean;
@@ -22,6 +31,9 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
   const [saving, setSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [prefs, setPrefs] = useState<EmailPrefs>({
     email_trial_expiry: true,
     email_low_credits: true,
@@ -74,6 +86,26 @@ export default function SettingsPage() {
     await signOut();
     navigate("/", { replace: true });
     toast("You've been signed out.");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== "DELETE") return;
+    setDeleting(true);
+    try {
+      const { error: fnError } = await supabase.functions.invoke("delete-account");
+      if (fnError) {
+        toast.error("Failed to delete account. Please try again.");
+        setDeleting(false);
+        return;
+      }
+      toast.success("Account deleted successfully.");
+      setDeleteDialogOpen(false);
+      await signOut();
+      navigate("/", { replace: true });
+    } catch {
+      toast.error("Network error. Please try again.");
+      setDeleting(false);
+    }
   };
 
   const notificationItems = [
@@ -142,9 +174,55 @@ export default function SettingsPage() {
       {/* Danger Zone */}
       <div className="border border-destructive/30 rounded-xl p-6 space-y-4">
         <h2 className="text-lg font-semibold text-destructive">Danger Zone</h2>
-        <p className="text-sm text-muted-foreground">Permanently delete your account and all data. This cannot be undone.</p>
-        <Button variant="destructive">Delete Account</Button>
+        <p className="text-sm text-muted-foreground">
+          Permanently delete your account and all data. This cannot be undone.
+        </p>
+        <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+          Delete Account
+        </Button>
       </div>
+
+      {/* Delete Account Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-background border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">Delete Account</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <span className="block">
+                This will permanently delete your account, all projects, media files,
+                exports, and cancel any active subscription. This action cannot be undone.
+              </span>
+              <span className="block text-sm font-medium text-foreground">
+                Type <strong className="text-destructive">DELETE</strong> to confirm:
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            placeholder="Type DELETE to confirm"
+            className="bg-background font-mono"
+            disabled={deleting}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deleteConfirmText !== "DELETE" || deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                "Delete My Account"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

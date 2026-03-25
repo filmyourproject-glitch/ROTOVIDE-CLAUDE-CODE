@@ -12,6 +12,7 @@ import { MobilePanelSheet, type TabId } from "@/components/editor/MobilePanelShe
 import { useAutosave } from "@/hooks/useAutosave";
 import { useTimelineHistory } from "@/hooks/useTimelineHistory";
 import { StyleComparisonPanel } from "@/components/editor/StyleComparisonPanel";
+import { KeyboardShortcutsDialog } from "@/components/editor/KeyboardShortcutsDialog";
 import type { EditManifest } from "@/lib/editManifest";
 import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
@@ -99,6 +100,7 @@ export default function EditorPage() {
   const [exportPanelOpen, setExportPanelOpen] = useState(false);
   const [directorChatOpen, setDirectorChatOpen] = useState(false);
   const [styleCompOpen, setStyleCompOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [currentManifestId, setCurrentManifestId] = useState<string | null>(null);
   const [activeManifest, setActiveManifest] = useState<EditManifest | null>(null);
 
@@ -319,6 +321,12 @@ export default function EditorPage() {
         if (e.key === "v" || e.key === "V") setActiveTool("select");
         if (e.key === "s" || e.key === "S") setActiveTool("split");
         if (e.key === "t" || e.key === "T") setActiveTool("trim");
+      }
+      // Keyboard shortcuts help
+      if (e.key === "?" && !ctrl) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
       }
       // Arrow keys to nudge playhead
       if (e.key === "ArrowLeft") {
@@ -1363,6 +1371,7 @@ export default function EditorPage() {
         clips={clips}
         beats={beats}
         onApplyManifest={handleApplyManifest}
+        clipMeta={clipMeta}
       />
 
       {/* Export Panel */}
@@ -1380,6 +1389,9 @@ export default function EditorPage() {
         hasLyrics={lyricsWords.length > 0}
         manifestId={currentManifestId ?? undefined}
       />
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   );
 }

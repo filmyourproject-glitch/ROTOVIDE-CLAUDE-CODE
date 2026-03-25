@@ -9,7 +9,8 @@ import type {
   Transition,
   FaceCrop as ManifestFaceCrop,
 } from "./editManifest";
-import type { TimelineClip, Effect, CropSettings } from "@/types";
+import { getClipAtTime } from "./editManifest";
+import type { TimelineClip, Effect, CropSettings, Section } from "@/types";
 
 // ── Effect mapping tables ──────────────────────────────────────────────────
 
@@ -230,5 +231,42 @@ export function getManifestStats(manifest: EditManifest): {
     effectCount,
     confidence: manifest.metadata.confidence,
     duration: manifest.timeline.output.duration,
+  };
+}
+
+// ── Utility: find a representative preview moment in a manifest ───────────
+
+export function findPreviewMoment(
+  manifest: EditManifest,
+  sections: Section[]
+): {
+  clip: Clip;
+  mediaRef: string;
+  sourceStart: number;
+  sourceEnd: number;
+  effects: Clip["effects"];
+} | null {
+  // Prefer first chorus → first verse → 25% through song
+  const chorus = sections.find((s) => s.type === "chorus");
+  const verse = sections.find((s) => s.type === "verse");
+  const targetTime =
+    chorus?.start ?? verse?.start ?? manifest.timeline.output.duration * 0.25;
+
+  const clip = getClipAtTime(manifest, targetTime);
+  if (!clip) return null;
+
+  // Convert timeline time → source asset time
+  const offsetInClip = targetTime - clip.timeline_position;
+  const sourceStart = clip.source_range.start + offsetInClip;
+  const remainingInClip = clip.source_range.duration - offsetInClip;
+  const previewDuration = Math.min(8, remainingInClip);
+  const sourceEnd = sourceStart + previewDuration;
+
+  return {
+    clip,
+    mediaRef: clip.media_ref,
+    sourceStart,
+    sourceEnd,
+    effects: clip.effects,
   };
 }

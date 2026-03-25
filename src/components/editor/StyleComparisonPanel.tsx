@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Loader2, X, Sparkles, Zap, Film, CloudMoon, CheckCircle } from "lucide-react";
+import { Loader2, X, Sparkles, Zap, Film, CloudMoon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel";
-import { getManifestStats } from "@/lib/manifestInterpreter";
+import { StylePreviewCard } from "@/components/editor/StylePreviewCard";
 import type { EditManifest } from "@/lib/editManifest";
 import type { Section, TimelineClip } from "@/types";
 
@@ -38,6 +38,7 @@ interface StyleComparisonPanelProps {
   clips: TimelineClip[];
   beats: number[];
   onApplyManifest: (manifest: EditManifest) => void;
+  clipMeta?: Record<string, { url: string; muxPlaybackId?: string; [key: string]: unknown }>;
 }
 
 export function StyleComparisonPanel({
@@ -50,6 +51,7 @@ export function StyleComparisonPanel({
   clips,
   beats,
   onApplyManifest,
+  clipMeta,
 }: StyleComparisonPanelProps) {
   const [loading, setLoading] = useState(false);
   const [manifests, setManifests] = useState<Partial<Record<StyleKey, EditManifest>> | null>(null);
@@ -212,71 +214,15 @@ export function StyleComparisonPanel({
                     );
                   }
 
-                  const stats = getManifestStats(manifest);
-
                   return (
                     <CarouselItem key={style}>
-                      <div
-                        className="rounded-xl p-5 flex flex-col gap-4"
-                        style={{ background: "hsl(0 0% 8%)", border: "1px solid hsl(var(--border))" }}
-                      >
-                        {/* Style header */}
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center"
-                            style={{ background: "hsl(var(--primary) / 0.15)" }}
-                          >
-                            <Icon className="w-5 h-5 text-primary" />
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-mono font-semibold text-foreground">
-                              {meta.label}
-                            </h3>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                              {meta.description}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Stats grid */}
-                        <div
-                          className="grid grid-cols-3 gap-3 p-3 rounded-lg"
-                          style={{ background: "hsl(0 0% 6%)" }}
-                        >
-                          <div className="text-center">
-                            <div className="text-lg font-mono font-bold text-foreground">
-                              {stats.cutCount}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground font-mono">CUTS</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-mono font-bold text-foreground">
-                              {stats.effectCount}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground font-mono">EFFECTS</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-mono font-bold text-foreground">
-                              {Math.round(stats.confidence * 100)}%
-                            </div>
-                            <div className="text-[10px] text-muted-foreground font-mono">CONF</div>
-                          </div>
-                        </div>
-
-                        {/* Apply button */}
-                        <button
-                          onClick={() => onApplyManifest(manifest)}
-                          className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-mono font-semibold w-full justify-center transition-colors"
-                          style={{
-                            background: "hsl(var(--primary) / 0.15)",
-                            color: "hsl(var(--primary))",
-                            border: "1px solid hsl(var(--primary) / 0.3)",
-                          }}
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          USE THIS STYLE
-                        </button>
-                      </div>
+                      <StylePreviewCard
+                        manifest={manifest}
+                        sections={sections}
+                        clipMeta={clipMeta || {}}
+                        styleMeta={meta}
+                        onApply={() => onApplyManifest(manifest)}
+                      />
                     </CarouselItem>
                   );
                 })}
