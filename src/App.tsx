@@ -1,9 +1,4 @@
 import { useEffect, lazy, Suspense } from "react";
-
-// Dev-only debug panel (code-split)
-const DebugPanel = import.meta.env.DEV
-  ? lazy(() => import("@/components/debug/DebugPanel"))
-  : () => null;
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -44,6 +39,11 @@ const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const PricingPage = lazy(() => import("@/pages/PricingPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const WaitlistPage = lazy(() => import("@/pages/admin/WaitlistPage"));
+
+// Dev-only debug panel (code-split, must be after all imports to avoid TDZ)
+const DebugPanel = import.meta.env.DEV
+  ? lazy(() => import("@/components/debug/DebugPanel"))
+  : () => null;
 
 // ── Route loading spinner ──────────────────────────────────────────────────
 function RouteSpinner() {
