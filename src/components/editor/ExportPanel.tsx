@@ -345,7 +345,7 @@ export function ExportPanel({
             await supabase.functions.invoke("trigger-render", {
               body: { export_id: exportRecord.id, project_id: projectId, manifest_id: manifestId || null },
             });
-            console.log("Render triggered for export:", exportRecord.id);
+            if (import.meta.env.DEV) console.log("Render triggered for export:", exportRecord.id);
           } catch (triggerErr) {
             console.error("Failed to trigger render:", triggerErr);
             toast.error("Failed to start render. Please try again.");
@@ -384,7 +384,7 @@ export function ExportPanel({
       await supabase.functions.invoke("trigger-render", {
         body: { export_id: activeExportId, project_id: projectId, manifest_id: manifestId || null },
       });
-      console.log("Retry triggered for export:", activeExportId);
+      if (import.meta.env.DEV) console.log("Retry triggered for export:", activeExportId);
     } catch (err) {
       console.error("Retry trigger failed:", err);
       toast.error("Retry failed. Please try again.");

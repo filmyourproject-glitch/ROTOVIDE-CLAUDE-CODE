@@ -155,7 +155,7 @@ async function fetchMuxAudio(playbackId: string): Promise<ArrayBuffer | null> {
     }
 
     const buffer = await resp.arrayBuffer();
-    console.log(`fetch-mux-audio returned ${buffer.byteLength} bytes`);
+    if (import.meta.env.DEV) console.log(`fetch-mux-audio returned ${buffer.byteLength} bytes`);
     return buffer;
   } catch (err) {
     console.warn("fetchMuxAudio failed:", err);
@@ -181,11 +181,11 @@ async function waitForClipsReady(
     ).length ?? 0;
     const allReady = readyCount === clipIds.length;
     if (allReady) {
-      console.log(`All ${clipIds.length} clips have MP4 renditions ready`);
+      if (import.meta.env.DEV) console.log(`All ${clipIds.length} clips have MP4 renditions ready`);
       return true;
     }
 
-    console.log(`Waiting for MP4 renditions... ${readyCount}/${clipIds.length} ready`);
+    if (import.meta.env.DEV) console.log(`Waiting for MP4 renditions... ${readyCount}/${clipIds.length} ready`);
     await new Promise(r => setTimeout(r, 3000));
   }
   return false;
@@ -252,7 +252,7 @@ export async function runBeatSync(projectId: string): Promise<SyncResult> {
         (f) => f.file_type === "broll_clip" || f.clip_classification === "broll"
       )
     );
-    console.log(`Refreshed clip data — ${performanceClips.filter(c => c.mux_playback_id).length}/${performanceClips.length} clips have playback IDs`);
+    if (import.meta.env.DEV) console.log(`Refreshed clip data — ${performanceClips.filter(c => c.mux_playback_id).length}/${performanceClips.length} clips have playback IDs`);
   }
 
   // 3. Run audio analysis + auto BPM detection if song file exists
@@ -262,7 +262,7 @@ export async function runBeatSync(projectId: string): Promise<SyncResult> {
 
   if (songFile?.storage_path) {
     try {
-      console.log("Running audio analysis...");
+      if (import.meta.env.DEV) console.log("Running audio analysis...");
       const { data: signedUrl } = await supabase.storage
         .from("media")
         .createSignedUrl(songFile.storage_path, 600);
@@ -277,7 +277,7 @@ export async function runBeatSync(projectId: string): Promise<SyncResult> {
 
         // Auto-detect BPM from audio
         detectedBpm = detectBpmFromBuffer(songAudioBuffer);
-        console.log(`Auto-detected BPM: ${detectedBpm}`);
+        if (import.meta.env.DEV) console.log(`Auto-detected BPM: ${detectedBpm}`);
 
         // Use detected BPM if no manual BPM was set, or use manual as fallback
         const effectiveBpm = detectedBpm || project.bpm || 120;
@@ -285,7 +285,7 @@ export async function runBeatSync(projectId: string): Promise<SyncResult> {
         // Run full analysis using the already-decoded buffer
         analysisResult = analyzeSongFromBuffer(songAudioBuffer, effectiveBpm);
 
-        console.log(`Audio analysis complete: ${analysisResult.kick_timestamps.length} kicks, ${analysisResult.snare_timestamps.length} snares, ${analysisResult.drop_timestamps.length} drops, ${analysisResult.sections.length} sections`);
+        if (import.meta.env.DEV) console.log(`Audio analysis complete: ${analysisResult.kick_timestamps.length} kicks, ${analysisResult.snare_timestamps.length} snares, ${analysisResult.drop_timestamps.length} drops, ${analysisResult.sections.length} sections`);
       }
     } catch (err) {
       console.warn("Audio analysis failed, using heuristic sections:", err);
@@ -312,7 +312,7 @@ export async function runBeatSync(projectId: string): Promise<SyncResult> {
 
   if (songFile?.storage_path && performanceClips.length > 0) {
     try {
-      console.log("Sending clips to Railway for waveform sync...");
+      if (import.meta.env.DEV) console.log("Sending clips to Railway for waveform sync...");
       const { data, error } = await supabase.functions.invoke("sync-clips", {
         body: {
           project_id: projectId,
@@ -330,10 +330,10 @@ export async function runBeatSync(projectId: string): Promise<SyncResult> {
         for (const result of data.results) {
           if (result.pre_roll !== undefined && !result.error) {
             clipOffsets[result.clip_id] = result.pre_roll;
-            console.log(`Clip ${result.clip_id}: preRoll=${result.pre_roll.toFixed(2)}s confidence=${(result.confidence * 100).toFixed(1)}%`);
+            if (import.meta.env.DEV) console.log(`Clip ${result.clip_id}: preRoll=${result.pre_roll.toFixed(2)}s confidence=${(result.confidence * 100).toFixed(1)}%`);
           }
         }
-        console.log(`Railway sync complete: ${Object.keys(clipOffsets).length}/${performanceClips.length} clips synced`);
+        if (import.meta.env.DEV) console.log(`Railway sync complete: ${Object.keys(clipOffsets).length}/${performanceClips.length} clips synced`);
       }
     } catch (err) {
       console.warn("Railway sync failed, using timeline-based offsets:", err);
@@ -361,7 +361,7 @@ export async function runBeatSync(projectId: string): Promise<SyncResult> {
     analysisResult?.kick_timestamps,
     analysisResult?.drop_timestamps,
   );
-  console.log(`Intelligent cutting: ${cutPoints.length} cuts across ${sections.length} sections`);
+  if (import.meta.env.DEV) console.log(`Intelligent cutting: ${cutPoints.length} cuts across ${sections.length} sections`);
 
   // 4b. Optional AI Creative Director enhancement
   let aiBrollIndices: Set<number> | null = null;
@@ -394,7 +394,7 @@ export async function runBeatSync(projectId: string): Promise<SyncResult> {
           if (aiResult.data.creative_note) {
             creativeNote = aiResult.data.creative_note;
           }
-          console.log(`AI Creative Director: ${aiBrollIndices.size} B-roll suggestions applied`);
+          if (import.meta.env.DEV) console.log(`AI Creative Director: ${aiBrollIndices.size} B-roll suggestions applied`);
         }
       }
     } catch (aiErr) {
@@ -523,7 +523,7 @@ export async function runBeatSync(projectId: string): Promise<SyncResult> {
   const perfCount = orderedClips.filter(c => c.type === 'performance').length;
   const brollCount = orderedClips.filter(c => c.type === 'broll').length;
   const uniqueCams = new Set(orderedClips.map(c => c.clip_id)).size;
-  console.log(`Live Switcher: ${orderedClips.length} cuts, ${perfCount} perf / ${brollCount} broll, ${uniqueCams} unique cameras`);
+  if (import.meta.env.DEV) console.log(`Live Switcher: ${orderedClips.length} cuts, ${perfCount} perf / ${brollCount} broll, ${uniqueCams} unique cameras`);
 
   // 8. Build sections with real energy_avg from analysis
   const timelineSections: Section[] = analysisResult?.sections?.length

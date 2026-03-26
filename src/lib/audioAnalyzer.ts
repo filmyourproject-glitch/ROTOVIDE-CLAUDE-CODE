@@ -259,7 +259,7 @@ export function findClipOffset_legacy(
   // Confidence: how much better the best match is than second best
   const confidence = bestCorr > 0 ? Math.min(1, (bestCorr - Math.max(secondBestCorr, 0)) * 5) : 0;
 
-  console.log(`[XCorr-legacy] bestLag=${bestLag} refinedLag=${refinedLag.toFixed(2)} offset=${offsetSeconds.toFixed(3)}s corr=${bestCorr.toFixed(4)} conf=${(confidence * 100).toFixed(1)}%`);
+  if (import.meta.env.DEV) console.log(`[XCorr-legacy] bestLag=${bestLag} refinedLag=${refinedLag.toFixed(2)} offset=${offsetSeconds.toFixed(3)}s corr=${bestCorr.toFixed(4)} conf=${(confidence * 100).toFixed(1)}%`);
 
   return { offsetSeconds, confidence };
 }
@@ -379,7 +379,7 @@ export function findClipOffset(
     ? Math.min(1, (bestCorr - Math.max(secondBestCorr, 0)) * 10)
     : 0;
 
-  console.log(`[XCorr] offset=${offsetSeconds.toFixed(3)}s corr=${bestCorr.toFixed(4)} conf=${(confidence * 100).toFixed(1)}%`);
+  if (import.meta.env.DEV) console.log(`[XCorr] offset=${offsetSeconds.toFixed(3)}s corr=${bestCorr.toFixed(4)} conf=${(confidence * 100).toFixed(1)}%`);
 
   return { offsetSeconds, confidence };
 }
@@ -746,7 +746,7 @@ export function computeBangerScore(
 
     // 2. Contains chorus/drop (40%)
     let hasChorus = false;
-    let hasDrop = false;
+    const hasDrop = false;
     const overlappingSections: string[] = [];
     for (const s of sections) {
       if (s.start < endSec && s.end > startSec) {

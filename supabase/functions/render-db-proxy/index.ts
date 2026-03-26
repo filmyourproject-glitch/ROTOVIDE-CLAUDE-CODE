@@ -6,6 +6,25 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-render-secret",
 };
 
+// SECURITY: Only allow Railway to access specific tables and RPC functions
+const ALLOWED_TABLES = new Set([
+  "exports",
+  "media_files",
+  "projects",
+  "edit_manifests",
+  "video_indexes",
+  "project_clips",
+]);
+
+const ALLOWED_RPC = new Set([
+  "update_storage_used",
+]);
+
+const ALLOWED_BUCKETS = new Set([
+  "media",
+  "exports",
+]);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -35,6 +54,12 @@ Deno.serve(async (req) => {
       // ── Query a table ──
       case "select": {
         const { table, columns = "*", filters = [], single = false } = body;
+        if (!ALLOWED_TABLES.has(table)) {
+          return new Response(JSON.stringify({ error: `Table '${table}' not allowed` }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         let query = supabase.from(table).select(columns);
         for (const f of filters) {
           if (f.op === "eq") query = query.eq(f.column, f.value);
@@ -50,6 +75,12 @@ Deno.serve(async (req) => {
       // ── Update rows ──
       case "update": {
         const { table, values, filters = [] } = body;
+        if (!ALLOWED_TABLES.has(table)) {
+          return new Response(JSON.stringify({ error: `Table '${table}' not allowed` }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         let query = supabase.from(table).update(values);
         for (const f of filters) {
           if (f.op === "eq") query = query.eq(f.column, f.value);
@@ -62,6 +93,12 @@ Deno.serve(async (req) => {
       // ── Insert rows ──
       case "insert": {
         const { table, values } = body;
+        if (!ALLOWED_TABLES.has(table)) {
+          return new Response(JSON.stringify({ error: `Table '${table}' not allowed` }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         const { data, error } = await supabase.from(table).insert(values).select();
         if (error) throw error;
         return json({ data });
@@ -70,6 +107,12 @@ Deno.serve(async (req) => {
       // ── Get signed storage URL ──
       case "signed_url": {
         const { bucket = "media", path, expires_in = 3600 } = body;
+        if (!ALLOWED_BUCKETS.has(bucket)) {
+          return new Response(JSON.stringify({ error: `Bucket '${bucket}' not allowed` }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         const { data, error } = await supabase.storage
           .from(bucket)
           .createSignedUrl(path, expires_in);
@@ -80,6 +123,12 @@ Deno.serve(async (req) => {
       // ── Call an RPC function ──
       case "rpc": {
         const { fn, args = {} } = body;
+        if (!ALLOWED_RPC.has(fn)) {
+          return new Response(JSON.stringify({ error: `RPC function '${fn}' not allowed` }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         const { data, error } = await supabase.rpc(fn, args);
         if (error) throw error;
         return json({ data });

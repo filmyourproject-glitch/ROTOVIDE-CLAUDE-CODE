@@ -725,7 +725,7 @@ export default function ProjectDetailPage() {
       }
       if (!audioUrl) return;
 
-      console.log("Triggering lyrics transcription for project:", id);
+      if (import.meta.env.DEV) console.log("Triggering lyrics transcription for project:", id);
       const { error } = await supabase.functions.invoke("transcribe-lyrics", {
         body: { projectId: id, audioUrl },
       });

@@ -6,13 +6,82 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/**
+ * Verify Mux webhook signature (HMAC-SHA256).
+ * Mux sends: mux-signature: t=<timestamp>,v1=<hex-digest>
+ * Digest = HMAC-SHA256(secret, <timestamp>.<rawBody>)
+ */
+async function verifyMuxSignature(
+  rawBody: string,
+  signatureHeader: string,
+  secret: string,
+): Promise<boolean> {
+  const parts = signatureHeader.split(",");
+  const timestampPart = parts.find((p) => p.startsWith("t="));
+  const signaturePart = parts.find((p) => p.startsWith("v1="));
+
+  if (!timestampPart || !signaturePart) return false;
+
+  const timestamp = timestampPart.slice(2);
+  const expectedSig = signaturePart.slice(3);
+
+  // Reject requests older than 5 minutes to prevent replay attacks
+  const age = Math.abs(Date.now() / 1000 - parseInt(timestamp, 10));
+  if (age > 300) {
+    console.warn("[MUX-WEBHOOK] Signature too old:", age, "seconds");
+    return false;
+  }
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signed = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}.${rawBody}`));
+  const digest = Array.from(new Uint8Array(signed))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  return digest === expectedSig;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const body = await req.json();
+    const rawBody = await req.text();
+
+    // SECURITY: Verify Mux webhook signature if secret is configured
+    const muxWebhookSecret = Deno.env.get("MUX_WEBHOOK_SECRET");
+    const signatureHeader = req.headers.get("mux-signature");
+
+    if (muxWebhookSecret) {
+      if (!signatureHeader) {
+        console.error("[MUX-WEBHOOK] Missing mux-signature header");
+        return new Response(JSON.stringify({ error: "Missing signature" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const valid = await verifyMuxSignature(rawBody, signatureHeader, muxWebhookSecret);
+      if (!valid) {
+        console.error("[MUX-WEBHOOK] Invalid signature");
+        return new Response(JSON.stringify({ error: "Invalid signature" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      console.warn("[MUX-WEBHOOK] WARNING: MUX_WEBHOOK_SECRET not configured — skipping signature verification");
+    }
+
+    const body = JSON.parse(rawBody);
     const eventType = body.type;
     const eventData = body.data;
 

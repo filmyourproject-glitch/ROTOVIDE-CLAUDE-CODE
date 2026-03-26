@@ -76,26 +76,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fire-and-forget: start Railway download but don't await completion
-    const fetchPromise = fetch(`${railwayUrl}/download-youtube`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Render-Secret": renderSecret,
-      },
-      body: JSON.stringify({
-        url: videoUrl,
-        project_id,
-        user_id,
-        file_type: file_type || "performance_clip",
-        media_file_id: mediaFile.id,
-      }),
-    });
-
-    // Don't await — return immediately
-    EdgeRuntime.waitUntil(fetchPromise.catch(err =>
-      console.error("Background download error:", err)
-    ));
+    // Await the Railway call — Railway returns 202 immediately (background thread).
+    // IMPORTANT: Supabase Deno Deploy kills unawaited promises on Response return.
+    try {
+      const renderRes = await fetch(`${railwayUrl}/download-youtube`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Render-Secret": renderSecret,
+        },
+        body: JSON.stringify({
+          url: videoUrl,
+          project_id,
+          user_id,
+          file_type: file_type || "performance_clip",
+          media_file_id: mediaFile.id,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!renderRes.ok) {
+        const errText = await renderRes.text().catch(() => "");
+        console.error(`Download service error ${renderRes.status}: ${errText}`);
+      }
+    } catch (downloadErr) {
+      console.error("Railway download request failed:", downloadErr);
+      // Still return success — the media_files record was created for polling
+    }
 
     // Return success immediately so frontend can start polling
     return new Response(JSON.stringify({

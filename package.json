@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "debug:edge": "npx tsx scripts/debug-edge-functions.ts",
+    "debug:report": "npx tsx scripts/generate-debug-report.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

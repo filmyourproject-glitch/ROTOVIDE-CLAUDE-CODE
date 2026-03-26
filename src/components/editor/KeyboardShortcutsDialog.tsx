@@ -54,6 +54,10 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Help",
     shortcuts: [{ keys: ["?"], description: "Show this dialog" }],
   },
+  {
+    title: "Debug",
+    shortcuts: [{ keys: ["Ctrl", "Shift", "D"], description: "Toggle debug panel (dev only)" }],
+  },
 ];
 
 interface KeyboardShortcutsDialogProps {

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -49,6 +49,7 @@ export function BackgroundUploadProvider({ children }: { children: ReactNode }) 
   const [uploads, setUploads] = useState<BackgroundUpload[]>([]);
   const queueRef = useRef<Array<{ id: string; file: File; userId: string; projectId: string; storagePath: string; fileName: string; mediaFileId?: string }>>([]);
   const activeCountRef = useRef(0);
+  const intervalMapRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   const setUploadEntry = useCallback((entry: BackgroundUpload) => {
     setUploads(prev => {
@@ -113,7 +114,7 @@ export function BackgroundUploadProvider({ children }: { children: ReactNode }) 
         }
       })();
 
-      // Simulate progress for active upload
+      // Simulate progress for active upload (tracked for cleanup)
       let prog = 0;
       const estimatedMs = (item.file.size / (6.25 * 1024 * 1024)) * 1000;
       const intervalMs = Math.max(200, estimatedMs / 50);
@@ -121,6 +122,7 @@ export function BackgroundUploadProvider({ children }: { children: ReactNode }) 
         prog += 2;
         if (prog >= 95) {
           clearInterval(interval);
+          intervalMapRef.current.delete(item.id);
           return;
         }
         setUploads((prev) =>
@@ -131,6 +133,7 @@ export function BackgroundUploadProvider({ children }: { children: ReactNode }) 
           )
         );
       }, intervalMs);
+      intervalMapRef.current.set(item.id, interval);
     }
   }, []);
 
@@ -149,22 +152,33 @@ export function BackgroundUploadProvider({ children }: { children: ReactNode }) 
     [processNext]
   );
 
-  // Auto-clean completed uploads after 3 seconds
-  const activeUploads = uploads.filter((u) => u.phase === "uploading_original" || u.phase === "uploading_proxy" || u.phase === "transcoding" || u.phase === "queued");
-  if (uploads.length > 0 && activeUploads.length === 0) {
-    setTimeout(() => {
-      setUploads((prev) => {
-        const stillActive = prev.some((u) => u.phase === "uploading_original" || u.phase === "uploading_proxy" || u.phase === "transcoding" || u.phase === "queued");
-        if (!stillActive) {
-          if (prev.length > 0) {
-            toast.success("✓ All files processed.");
+  // Auto-clean completed uploads after 3 seconds (moved into useEffect to prevent leak)
+  useEffect(() => {
+    const activeUploads = uploads.filter((u) => u.phase === "uploading_original" || u.phase === "uploading_proxy" || u.phase === "transcoding" || u.phase === "queued");
+    if (uploads.length > 0 && activeUploads.length === 0) {
+      const cleanupTimeout = setTimeout(() => {
+        setUploads((prev) => {
+          const stillActive = prev.some((u) => u.phase === "uploading_original" || u.phase === "uploading_proxy" || u.phase === "transcoding" || u.phase === "queued");
+          if (!stillActive) {
+            if (prev.length > 0) {
+              toast.success("✓ All files processed.");
+            }
+            return [];
           }
-          return [];
-        }
-        return prev;
-      });
-    }, 3000);
-  }
+          return prev;
+        });
+      }, 3000);
+      return () => clearTimeout(cleanupTimeout);
+    }
+  }, [uploads]);
+
+  // Clean up all tracked intervals on unmount
+  useEffect(() => {
+    return () => {
+      intervalMapRef.current.forEach((interval) => clearInterval(interval));
+      intervalMapRef.current.clear();
+    };
+  }, []);
 
   return (
     <BackgroundUploadContext.Provider value={{ uploads, queueUpload, setUploadEntry, removeUploadEntry }}>

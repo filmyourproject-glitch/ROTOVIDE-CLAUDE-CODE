@@ -1,4 +1,9 @@
 import { useEffect, lazy, Suspense } from "react";
+
+// Dev-only debug panel (code-split)
+const DebugPanel = import.meta.env.DEV
+  ? lazy(() => import("@/components/debug/DebugPanel"))
+  : () => null;
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -134,6 +139,11 @@ const App = () => (
           <BackgroundUploadBar />
         </BrowserRouter>
         </ErrorBoundary>
+        {import.meta.env.DEV && (
+          <Suspense fallback={null}>
+            <DebugPanel />
+          </Suspense>
+        )}
       </TooltipProvider>
       </BackgroundUploadProvider>
     </AuthProvider>

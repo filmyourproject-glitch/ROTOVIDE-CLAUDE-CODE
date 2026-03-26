@@ -94,6 +94,8 @@ export default function EditorPage() {
   const [songUrl, setSongUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const repairRanRef = useRef(false);
+  const batchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const faceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
 
@@ -586,7 +588,7 @@ export default function EditorPage() {
       }
 
       if (repaired > 0) {
-        console.log(`Repaired ${repaired} stuck media_files rows`);
+        if (import.meta.env.DEV) console.log(`Repaired ${repaired} stuck media_files rows`);
         setClipMeta({});
         setClipUrlsLoading(true);
       }
@@ -815,7 +817,7 @@ export default function EditorPage() {
       setClipUrlsLoading(false);
 
       if (remainingIds.length > 0) {
-        setTimeout(async () => {
+        batchTimeoutRef.current = setTimeout(async () => {
           const restResults = await resolveClipBatch(remainingIds);
           const restMap: ClipUrlMap = {};
           const restCrops: Record<string, FaceCrop> = {};
@@ -841,7 +843,7 @@ export default function EditorPage() {
         }, 1500);
       }
 
-      setTimeout(() => {
+      faceTimeoutRef.current = setTimeout(() => {
         if (previewUrlsForDetection.length > 0) {
           import("@/lib/faceDetection").then(async ({ loadFaceModel, detectFaceFromUrl }) => {
             await loadFaceModel();
@@ -863,6 +865,11 @@ export default function EditorPage() {
         }
       }, 3000);
     })();
+
+    return () => {
+      if (batchTimeoutRef.current) clearTimeout(batchTimeoutRef.current);
+      if (faceTimeoutRef.current) clearTimeout(faceTimeoutRef.current);
+    };
   }, [loadState, timelineData?.timeline, id]);
 
   // Ref to avoid stale closure in polling interval
@@ -923,7 +930,7 @@ export default function EditorPage() {
           };
           updates[clipId] = meta;
           if (file.id !== clipId) updates[file.id] = meta;
-          console.log("Upgraded to Mux stream:", file.file_name);
+          if (import.meta.env.DEV) console.log("Upgraded to Mux stream:", file.file_name);
           continue;
         }
 
@@ -946,7 +953,7 @@ export default function EditorPage() {
             };
             updates[clipId] = meta;
             if (file.id !== clipId) updates[file.id] = meta;
-            console.log("Upgraded to video:", file.file_name);
+            if (import.meta.env.DEV) console.log("Upgraded to video:", file.file_name);
           }
         }
         else if (prev?.status === "proxy" && file.status === "ready" && file.storage_path) {
@@ -965,7 +972,7 @@ export default function EditorPage() {
             };
             updates[clipId] = meta;
             if (file.id !== clipId) updates[file.id] = meta;
-            console.log("Upgraded proxy to original:", file.file_name);
+            if (import.meta.env.DEV) console.log("Upgraded proxy to original:", file.file_name);
           }
         }
       }
@@ -1168,8 +1175,6 @@ export default function EditorPage() {
     if (!energyCurve.length || !duration) return null;
     return computeBangerScore(energyCurve, sections, timelineData?.bpm || project?.bpm || 140, duration);
   }, [energyCurve, sections, timelineData?.bpm, project?.bpm, duration]);
-
-  console.log("lyricsWords count:", lyricsWords.length);
 
   const controlPanelProps = {
     syncStatus: project?.sync_status ?? "pending",
