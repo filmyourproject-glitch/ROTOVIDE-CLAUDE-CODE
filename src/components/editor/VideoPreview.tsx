@@ -185,7 +185,7 @@ export function VideoPreview({
     };
   }, []);
 
-  // ── THE KEY SYNC LOOP ──
+  // ── THE KEY SYNC LOOP — keeps ALL cameras in sync with the song ──
   useEffect(() => {
     for (const [cameraId, camera] of Object.entries(cameraRegistry)) {
       const video = videoRefs.current[cameraId];
@@ -193,12 +193,23 @@ export function VideoPreview({
       const targetPos = Math.max(0, currentTime + camera.xcorrOffset);
       const drift = Math.abs(video.currentTime - targetPos);
       if (isPlaying) {
-        if (drift > 1.5) video.currentTime = targetPos;
+        // Tighter drift tolerance for multicam — 0.3s instead of 1.5s
+        if (drift > 0.3) video.currentTime = targetPos;
       } else {
         if (drift > 0.05) video.currentTime = targetPos;
       }
     }
   }, [currentTime, cameraRegistry, isPlaying]);
+
+  // ── Force-sync when active camera changes ──
+  useEffect(() => {
+    if (!activeCameraId) return;
+    const camera = cameraRegistry[activeCameraId];
+    const video = videoRefs.current[activeCameraId];
+    if (!camera || !video) return;
+    const targetPos = Math.max(0, currentTime + camera.xcorrOffset);
+    video.currentTime = targetPos;
+  }, [activeCameraId]);
 
   // ── Sync play/pause on ALL cameras simultaneously ──
   useEffect(() => {
