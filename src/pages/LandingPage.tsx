@@ -351,10 +351,9 @@ function FourTools() {
   return (
     <section className="rv-sec" id="tools">
       <div className="rv-w">
-        <span className="rv-lbl rv-r">SEVEN TOOLS. ONE SUITE.</span>
+        <span className="rv-lbl rv-r">NO EDITOR NEEDED.</span>
         <h2 className="rv-r">
-          SESSION TO FEED.<br />
-          <span className="a">NO EDITOR NEEDED.</span>
+          <span className="a">SEVEN TOOLS.</span> ONE SUITE.
         </h2>
         <p className="rv-sub rv-r">
           Whether you recorded on your phone in your living room or filmed a session at
