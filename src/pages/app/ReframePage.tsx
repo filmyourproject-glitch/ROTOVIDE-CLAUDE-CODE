@@ -4,6 +4,7 @@ import { ArrowLeft, Upload, Crop, Play, Pause, Download, RotateCcw } from "lucid
 import { Button } from "@/components/ui/button";
 import { ProcessingProgress } from "@/components/shared/ProcessingProgress";
 import { supabase } from "@/integrations/supabase/client";
+import { uploadToMux } from "@/lib/muxUploader";
 import { useAuth } from "@/hooks/useAuth";
 
 type Step = "input" | "uploading" | "tracking" | "preview" | "done";
@@ -43,34 +44,52 @@ export default function ReframePage() {
   };
 
   const startProcessing = async () => {
-    if (!file) return;
+    if (!file || !user) return;
     setStep("uploading");
     setUploadProgress(0);
 
-    // Simulate upload progress (real implementation uses Mux uploadToMux)
-    const uploadInterval = setInterval(() => {
-      setUploadProgress((p) => {
-        if (p >= 95) { clearInterval(uploadInterval); return 95; }
-        return p + Math.random() * 15;
-      });
-    }, 300);
+    try {
+      // Create project
+      const { data: project, error: projErr } = await supabase
+        .from("projects")
+        .insert({
+          user_id: user.id,
+          name: file.name.replace(/\.[^.]+$/, ""),
+          type: "ai_reframe",
+          status: "active",
+          sync_status: "pending",
+        } as any)
+        .select("id")
+        .single();
 
-    // Create project
-    if (user) {
-      await supabase.from("projects").insert({
-        user_id: user.id,
-        name: file.name.replace(/\.[^.]+$/, ""),
-        type: "ai_reframe",
-        status: "active",
-        sync_status: "processing",
-      });
-    }
+      if (projErr || !project) throw new Error("Failed to create project");
 
-    setTimeout(() => {
-      clearInterval(uploadInterval);
+      // Get Mux upload URL
+      const { data: muxData, error: muxErr } = await supabase.functions.invoke(
+        "create-mux-upload",
+        {
+          body: {
+            projectId: project.id,
+            fileName: file.name,
+            fileType: "performance_clip",
+            fileSize: file.size,
+          },
+        }
+      );
+
+      if (muxErr || !muxData?.uploadUrl) throw new Error("Failed to get upload URL");
+
+      // Upload to Mux with real progress
+      await uploadToMux(file, muxData.uploadUrl, (p) => {
+        setUploadProgress(p.percent);
+      });
+
       setUploadProgress(100);
       startFaceTracking();
-    }, 2000);
+    } catch (err) {
+      console.error("Upload failed:", err);
+      setStep("input");
+    }
   };
 
   const startFaceTracking = async () => {

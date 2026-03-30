@@ -4,6 +4,7 @@ import { ArrowLeft, Upload, CircleDot, Play, Pause, Download, RotateCcw, Music }
 import { Button } from "@/components/ui/button";
 import { ProcessingProgress } from "@/components/shared/ProcessingProgress";
 import { supabase } from "@/integrations/supabase/client";
+import { uploadToMux } from "@/lib/muxUploader";
 import { useAuth } from "@/hooks/useAuth";
 
 type Step = "input" | "uploading" | "processing" | "preview" | "done";
@@ -47,42 +48,67 @@ export default function LoopVisualizerPage() {
     setStep("uploading");
     setProgress(0);
 
-    // Create project
-    if (user) {
-      await supabase.from("projects").insert({
-        user_id: user.id,
-        name: `Loop — ${file.name.replace(/\.[^.]+$/, "")}`,
-        type: "loop_visualizer",
-        status: "active",
-        sync_status: "processing",
-      });
-    }
+    try {
+      // Create project
+      const { data: project, error: projErr } = await supabase
+        .from("projects")
+        .insert({
+          user_id: user!.id,
+          name: `Loop — ${file.name.replace(/\.[^.]+$/, "")}`,
+          type: "loop_visualizer",
+          status: "active",
+          sync_status: "pending",
+        } as any)
+        .select("id")
+        .single();
 
-    // Simulate upload
-    const uploadInterval = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 50) { clearInterval(uploadInterval); return 50; }
-        return p + Math.random() * 10;
-      });
-    }, 200);
+      if (projErr || !project) throw new Error("Failed to create project");
 
-    setTimeout(() => {
-      clearInterval(uploadInterval);
+      // Get Mux upload URL
+      const { data: muxData, error: muxErr } = await supabase.functions.invoke(
+        "create-mux-upload",
+        {
+          body: {
+            projectId: project.id,
+            fileName: file.name,
+            fileType: "performance_clip",
+            fileSize: file.size,
+          },
+        }
+      );
+
+      if (muxErr || !muxData?.uploadUrl) throw new Error("Failed to get upload URL");
+
+      // Upload to Mux with real progress
+      await uploadToMux(file, muxData.uploadUrl, (p) => {
+        setProgress(p.percent);
+      });
+
       setStep("processing");
-      setProgress(50);
+      setProgress(100);
 
-      // Simulate processing (loop extraction)
-      const processInterval = setInterval(() => {
-        setProgress((p) => {
-          if (p >= 100) {
-            clearInterval(processInterval);
-            setStep("preview");
-            return 100;
+      // Poll for Mux asset to be ready
+      const mediaFileId = muxData.mediaFileId;
+      if (mediaFileId) {
+        for (let attempt = 0; attempt < 60; attempt++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const { data: mf } = await supabase
+            .from("media_files")
+            .select("mux_playback_id")
+            .eq("id", mediaFileId)
+            .single();
+          if (mf?.mux_playback_id) {
+            setVideoUrl(`https://stream.mux.com/${mf.mux_playback_id}/high.mp4`);
+            break;
           }
-          return p + Math.random() * 8;
-        });
-      }, 300);
-    }, 2500);
+        }
+      }
+
+      setStep("preview");
+    } catch (err) {
+      console.error("Upload failed:", err);
+      setStep("input");
+    }
   };
 
   const togglePlay = () => {

@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBackgroundUploads } from "@/contexts/BackgroundUploadContext";
 import { extractPreviewFrame, estimateUploadTime } from "@/lib/proxyGenerator";
 import { uploadToMux } from "@/lib/muxUploader";
+import { TemplateSelector } from "@/components/editor/TemplateSelector";
 // faceTracking imported dynamically at call site to avoid bundling TensorFlow
 import { COLOR_GRADE_MAP, getColorGradeFilter } from "@/lib/colorGrades";
 import { ColorGradeSwatches } from "@/components/color-grade/ColorGradeSwatches";
@@ -746,6 +747,13 @@ export default function NewProjectPage() {
         {/* Step 1: Style */}
         {step === 1 && (
           <div className="space-y-6">
+            {/* Saved templates */}
+            <TemplateSelector onSelect={(settings) => {
+              if (settings.stylePreset) setStyle(settings.stylePreset as StylePreset);
+              if (settings.colorGrade) setColorGrade(settings.colorGrade as ColorGrade);
+              if (settings.colorGradeIntensity != null) setColorIntensity(Math.round(settings.colorGradeIntensity * 100));
+              if (settings.format) setFormat(settings.format as VideoFormat);
+            }} />
             <div>
               <h2 className="text-xl font-semibold text-foreground">Choose your edit style</h2>
               <p className="text-sm text-muted-foreground mt-1">This determines how your clips are cut, transitioned, and styled</p>

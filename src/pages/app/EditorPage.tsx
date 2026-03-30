@@ -18,6 +18,7 @@ import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
 import { EditorSidebar, type SidebarTool } from "@/components/editor/EditorSidebar";
 import { AIDirectorPanel } from "@/components/editor/AIDirectorPanel";
 import { EditorTour } from "@/components/editor/EditorTour";
+import { SaveTemplateModal } from "@/components/editor/SaveTemplateModal";
 import { supabase } from "@/integrations/supabase/client";
 
 // Lazy-loaded slide-out panels (only loaded when opened)
@@ -115,6 +116,7 @@ export default function EditorPage() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [sidebarTool, setSidebarTool] = useState<SidebarTool>(null);
   const [showTour, setShowTour] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [currentManifestId, setCurrentManifestId] = useState<string | null>(null);
   const [activeManifest, setActiveManifest] = useState<EditManifest | null>(null);
 
@@ -1538,6 +1540,21 @@ export default function EditorPage() {
 
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
+      {/* Save Template Modal — shown after export */}
+      <SaveTemplateModal
+        open={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        settings={{
+          colorGrade,
+          colorGradeIntensity,
+          captionStyle: lyricsStyle,
+          captionSize: lyricsSize,
+          captionPosition: lyricsPosition,
+          format,
+          stylePreset,
+        }}
+      />
 
       {/* Editor Tour — guided onboarding */}
       <EditorTour
