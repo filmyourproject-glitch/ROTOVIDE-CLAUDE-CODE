@@ -1,8 +1,9 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutGrid, Film, Scissors, CreditCard, Settings, LogOut, HardDrive, MessageSquare } from "lucide-react";
+import { LayoutGrid, Film, Scissors, CreditCard, Settings, LogOut, HardDrive, MessageSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { RotovideLogo } from "@/components/ui/RotovideLogo";
+import { ADMIN_EMAILS } from "@/lib/admin/constants";
 
 const navItems = [
   { to: "/app/dashboard", icon: LayoutGrid, label: "Dashboard" },
@@ -17,7 +18,8 @@ const navItems = [
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { displayName, initials, planLabel, signOut } = useAuth();
+  const { user, displayName, initials, planLabel, signOut } = useAuth();
+  const isAdmin = ADMIN_EMAILS.includes(user?.email ?? "");
 
   const handleLogout = async () => {
     await signOut();
@@ -59,6 +61,21 @@ export function Sidebar() {
             </NavLink>
           );
         })}
+        {isAdmin && (
+          <NavLink
+            to="/app/admin"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-default mt-4",
+              location.pathname.startsWith("/app/admin")
+                ? "text-primary bg-primary/[0.06]"
+                : "text-foreground/40 hover:text-foreground/60 hover:bg-foreground/[0.03]"
+            )}
+            style={location.pathname.startsWith("/app/admin") ? { borderLeft: '2px solid #E8FF47', paddingLeft: 10 } : {}}
+          >
+            <Shield className="w-4 h-4" />
+            Admin
+          </NavLink>
+        )}
       </nav>
 
       {/* User section */}

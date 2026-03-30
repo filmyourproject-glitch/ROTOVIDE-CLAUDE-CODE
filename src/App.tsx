@@ -8,6 +8,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { BackgroundUploadProvider } from "@/contexts/BackgroundUploadContext";
 import { BackgroundUploadBar } from "@/components/upload/BackgroundUploadBar";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { AdminRoute } from "@/components/auth/AdminRoute";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { RoutePrefetcher } from "@/components/layout/RoutePrefetcher";
@@ -39,6 +41,12 @@ const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const PricingPage = lazy(() => import("@/pages/PricingPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const WaitlistPage = lazy(() => import("@/pages/admin/WaitlistPage"));
+const WaitlistFormPage = lazy(() => import("@/pages/WaitlistFormPage"));
+
+// Admin dashboard
+const AdminDashboardPage = lazy(() => import("@/pages/app/admin/AdminDashboardPage"));
+const AdminWaitlistPage = lazy(() => import("@/pages/app/admin/AdminWaitlistPage"));
+const AdminAnalyticsPage = lazy(() => import("@/pages/app/admin/AdminAnalyticsPage"));
 
 // Dev-only debug panel (code-split, must be after all imports to avoid TDZ)
 const DebugPanel = import.meta.env.DEV
@@ -130,7 +138,17 @@ const App = () => (
             {/* Editor — full-screen, outside AppLayout */}
             <Route path="/app/projects/:id/editor" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
 
-            {/* Admin routes */}
+            {/* Public waitlist form */}
+            <Route path="/waitlist" element={<WaitlistFormPage />} />
+
+            {/* Admin dashboard */}
+            <Route path="/app/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+              <Route index element={<AdminDashboardPage />} />
+              <Route path="waitlist" element={<AdminWaitlistPage />} />
+              <Route path="analytics" element={<AdminAnalyticsPage />} />
+            </Route>
+
+            {/* Legacy admin routes */}
             <Route path="/admin/waitlist" element={<ProtectedRoute><WaitlistPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />

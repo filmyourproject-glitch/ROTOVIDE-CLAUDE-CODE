@@ -502,22 +502,61 @@ export type Database = {
       }
       waitlist: {
         Row: {
-          created_at: string | null
-          email: string
           id: string
+          email: string
+          name: string | null
+          instagram_url: string | null
+          tiktok_url: string | null
+          mission: string | null
+          agreed_to_terms: boolean
           source: string | null
+          status: string
+          notes: string | null
+          invite_code: string | null
+          code_sent: boolean
+          code_sent_at: string | null
+          redeemed: boolean
+          redeemed_at: string | null
+          invite_sent_at: string | null
+          created_at: string | null
         }
         Insert: {
-          created_at?: string | null
-          email: string
           id?: string
+          email: string
+          name?: string | null
+          instagram_url?: string | null
+          tiktok_url?: string | null
+          mission?: string | null
+          agreed_to_terms?: boolean
           source?: string | null
+          status?: string
+          notes?: string | null
+          invite_code?: string | null
+          code_sent?: boolean
+          code_sent_at?: string | null
+          redeemed?: boolean
+          redeemed_at?: string | null
+          invite_sent_at?: string | null
+          created_at?: string | null
         }
         Update: {
-          created_at?: string | null
-          email?: string
           id?: string
+          email?: string
+          name?: string | null
+          instagram_url?: string | null
+          tiktok_url?: string | null
+          mission?: string | null
+          agreed_to_terms?: boolean
           source?: string | null
+          status?: string
+          notes?: string | null
+          invite_code?: string | null
+          code_sent?: boolean
+          code_sent_at?: string | null
+          redeemed?: boolean
+          redeemed_at?: string | null
+          invite_sent_at?: string | null
+          created_at?: string | null
         }
         Relationships: []
       }
