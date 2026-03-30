@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { getMuxThumbnailUrl } from "@/lib/muxThumbnails";
-import { Film, Plus, ArrowRight, Loader2, Music, Video, Check, Scissors, MessageSquare, Crop, X, Zap, Info } from "lucide-react";
+import { Film, Plus, ArrowRight, Loader2, Music, Video, Check, Scissors, MessageSquare, Crop, X, Zap, Info, CircleDot } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { storePendingFile } from "@/lib/pendingFileStore";
 import { Button } from "@/components/ui/button";
@@ -615,7 +615,13 @@ export default function DashboardPage() {
       id: 'ai-reframe',
       icon: <Crop className="w-5 h-5" />,
       label: 'AI Reframe',
-      onClick: () => navigate('/app/projects/new'),
+      onClick: () => navigate('/app/reframe'),
+    },
+    {
+      id: 'loop-visualizer',
+      icon: <CircleDot className="w-5 h-5" />,
+      label: 'Loop Viz',
+      onClick: () => navigate('/app/loop-visualizer'),
     },
   ];
 

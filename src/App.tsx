@@ -35,6 +35,8 @@ const BillingPage = lazy(() => import("@/pages/app/BillingPage"));
 const SettingsPage = lazy(() => import("@/pages/app/SettingsPage"));
 const LongToShortsPage = lazy(() => import("@/pages/app/LongToShortsPage"));
 const CaptionsPage = lazy(() => import("@/pages/app/CaptionsPage"));
+const ReframePage = lazy(() => import("@/pages/app/ReframePage"));
+const LoopVisualizerPage = lazy(() => import("@/pages/app/LoopVisualizerPage"));
 
 // Public + admin
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
@@ -133,6 +135,8 @@ const App = () => (
               <Route path="settings" element={<SettingsPage />} />
               <Route path="long-to-shorts" element={<LongToShortsPage />} />
               <Route path="captions" element={<CaptionsPage />} />
+              <Route path="reframe" element={<ReframePage />} />
+              <Route path="loop-visualizer" element={<LoopVisualizerPage />} />
             </Route>
 
             {/* Editor — full-screen, outside AppLayout */}
