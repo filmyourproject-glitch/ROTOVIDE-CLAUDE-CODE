@@ -15,14 +15,15 @@ import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } fro
 import type { EditManifest } from "@/lib/editManifest";
 import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
 
-// Lazy-loaded slide-out panels (only loaded when opened)
-const ExportPanel = lazy(() => import("@/components/editor/ExportPanel").then(m => ({ default: m.ExportPanel })));
-const DirectorChat = lazy(() => import("@/components/editor/DirectorChat").then(m => ({ default: m.DirectorChat })));
-const StyleComparisonPanel = lazy(() => import("@/components/editor/StyleComparisonPanel").then(m => ({ default: m.StyleComparisonPanel })));
 import { EditorSidebar, type SidebarTool } from "@/components/editor/EditorSidebar";
 import { AIDirectorPanel } from "@/components/editor/AIDirectorPanel";
 import { EditorTour } from "@/components/editor/EditorTour";
 import { supabase } from "@/integrations/supabase/client";
+
+// Lazy-loaded slide-out panels (only loaded when opened)
+const ExportPanel = lazy(() => import("@/components/editor/ExportPanel").then(m => ({ default: m.ExportPanel })));
+const DirectorChat = lazy(() => import("@/components/editor/DirectorChat").then(m => ({ default: m.DirectorChat })));
+const StyleComparisonPanel = lazy(() => import("@/components/editor/StyleComparisonPanel").then(m => ({ default: m.StyleComparisonPanel })));
 import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section, Effect } from "@/types";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
 import type { FaceCrop } from "@/lib/faceUtils";
