@@ -23,10 +23,14 @@ import { ensureFirstClipIsPerformance } from "@/lib/beatSyncEngine";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-// Lazy-loaded slide-out panels (must be AFTER all imports to avoid TDZ in production)
+// Lazy-loaded panels (must be AFTER all imports to avoid TDZ in production)
 const ExportPanel = lazy(() => import("@/components/editor/ExportPanel").then(m => ({ default: m.ExportPanel })));
 const DirectorChat = lazy(() => import("@/components/editor/DirectorChat").then(m => ({ default: m.DirectorChat })));
 const StyleComparisonPanel = lazy(() => import("@/components/editor/StyleComparisonPanel").then(m => ({ default: m.StyleComparisonPanel })));
+const EditorSidebarLazy = lazy(() => import("@/components/editor/EditorSidebar").then(m => ({ default: m.EditorSidebar })));
+const AIDirectorPanelLazy = lazy(() => import("@/components/editor/AIDirectorPanel").then(m => ({ default: m.AIDirectorPanel })));
+const EditorTourLazy = lazy(() => import("@/components/editor/EditorTour").then(m => ({ default: m.EditorTour })));
+const SaveTemplateModalLazy = lazy(() => import("@/components/editor/SaveTemplateModal").then(m => ({ default: m.SaveTemplateModal })));
 
 // Fallback mock data only used when timeline_data has no real clips
 const MOCK_BEATS = Array.from({ length: 80 }, (_, i) => i * (60 / 140));
@@ -112,6 +116,9 @@ export default function EditorPage() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [styleCompOpen, setStyleCompOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [sidebarTool, setSidebarTool] = useState<string | null>(null);
+  const [showTour, setShowTour] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [currentManifestId, setCurrentManifestId] = useState<string | null>(null);
   const [activeManifest, setActiveManifest] = useState<EditManifest | null>(null);
 
@@ -1083,6 +1090,8 @@ export default function EditorPage() {
   // ── Multicam camera registry ──
   // Build a map of ALL unique performance cameras with their xcorrOffset.
   // xcorrOffset = seconds into the clip where the song audio begins (from xcorr analysis)
+  // Uses meta.xcorrOffset (from suggested_timeline_position in DB) with
+  // clip.source_offset as fallback for clips where DB field wasn't populated.
   const cameraRegistry = useMemo<Record<string, CameraEntry>>(() => {
     const registry: Record<string, CameraEntry> = {};
     for (const clip of clips) {
@@ -1090,9 +1099,13 @@ export default function EditorPage() {
       if (registry[clip.clip_id]) continue; // already registered
       const meta = clipMeta[clip.clip_id];
       if (!meta?.url) continue;
+      // Use meta xcorrOffset first, fall back to source_offset from timeline clip
+      const offset = (meta.xcorrOffset != null && meta.xcorrOffset !== 0)
+        ? meta.xcorrOffset
+        : (clip.source_offset ?? 0);
       registry[clip.clip_id] = {
         url: meta.url,
-        xcorrOffset: meta.xcorrOffset ?? 0,
+        xcorrOffset: offset,
         fileName: meta.fileName,
       };
     }
@@ -1390,8 +1403,19 @@ export default function EditorPage() {
           className="hidden md:flex md:w-[340px] xl:w-[380px] flex-col border-l border-border shrink-0 overflow-hidden"
           style={{ background: "hsl(0 0% 6.7%)" }}
         >
-          <EditorControlPanel {...controlPanelProps} />
+          {sidebarTool === "ai_director" ? (
+            <div className="p-4 overflow-y-auto flex-1">
+              <Suspense fallback={null}><AIDirectorPanelLazy /></Suspense>
+            </div>
+          ) : (
+            <EditorControlPanel {...controlPanelProps} />
+          )}
         </div>
+
+        {/* EDITOR SIDEBAR — right icon strip */}
+        <Suspense fallback={null}>
+          <EditorSidebarLazy activeTool={sidebarTool as any} onToolChange={setSidebarTool as any} />
+        </Suspense>
       </div>
 
       {/* ── COLLAPSIBLE TIMELINE ── */}
@@ -1520,6 +1544,35 @@ export default function EditorPage() {
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
+      {/* Save Template Modal */}
+      <Suspense fallback={null}>
+        <SaveTemplateModalLazy
+          open={showTemplateModal}
+          onClose={() => setShowTemplateModal(false)}
+          settings={{
+            colorGrade,
+            colorGradeIntensity,
+            captionStyle: lyricsStyle,
+            captionSize: lyricsSize,
+            captionPosition: lyricsPosition,
+            format,
+            stylePreset,
+          }}
+        />
+      </Suspense>
+
+      {/* Editor Tour */}
+      <Suspense fallback={null}>
+        <EditorTourLazy
+          open={showTour}
+          onComplete={async () => {
+            setShowTour(false);
+            if (user) {
+              await supabase.from("profiles").update({ has_seen_editor_tour: true }).eq("id", user.id);
+            }
+          }}
+        />
+      </Suspense>
     </div>
   );
 }
