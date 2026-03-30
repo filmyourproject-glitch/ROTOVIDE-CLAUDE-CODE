@@ -99,7 +99,7 @@ export default function WaitlistFormPage() {
               You're on the list!
             </h2>
             <p className="text-sm" style={{ color: "rgba(242,237,228,0.6)" }}>
-              We'll review your application and be in touch soon.
+              When the app launches, you'll receive an exclusive link with a free trial to start creating.
             </p>
             <Link
               to="/"
