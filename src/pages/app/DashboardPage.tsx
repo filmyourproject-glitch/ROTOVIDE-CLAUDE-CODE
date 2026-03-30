@@ -10,13 +10,13 @@ import { SyncStatusBadge, FormatBadge } from "@/components/projects/Badges";
 import { getStorageLimit } from "@/lib/storageLimits";
 import { useCreditSystem } from "@/hooks/useCreditSystem";
 import type { Project } from "@/types";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { RotovideLogoMark } from "@/components/ui/RotovideLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+
 
 /* ─── helpers ─── */
 function timeAgo(dateStr: string | null): string {

@@ -13,6 +13,13 @@ export type ClipClassification = 'performance' | 'broll' | 'unclassified'
 export type ExportStatus = 'queued' | 'processing' | 'completed' | 'failed'
 export type SectionType = 'intro' | 'verse' | 'chorus' | 'bridge' | 'outro'
 
+export interface CameraEntry {
+  url: string
+  xcorrOffset: number
+  syncConfidence?: number
+  fileName?: string
+}
+
 export interface Profile {
   id: string
   full_name: string

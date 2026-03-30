@@ -2,7 +2,7 @@ import { Film, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Hls from "hls.js";
 import { cn } from "@/lib/utils";
-import type { ColorGrade, VideoFormat } from "@/types";
+import type { ColorGrade, VideoFormat, Effect, CameraEntry } from "@/types";
 import { getColorGradeFilter } from "@/lib/colorGrades";
 import { Badge } from "@/components/ui/badge";
 import { type FaceCrop, getSmartCropPosition, getFacePositionAtTime, type FaceKeyframe } from "@/lib/faceUtils";
@@ -11,14 +11,9 @@ import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/li
 import { TransportControls } from "./video-preview/TransportControls";
 import { FaceTrackingBadge, WatermarkOverlay, ActiveCameraBadge } from "./video-preview/VideoOverlays";
 import { EffectOverlay, type ActiveTransition } from "./video-preview/EffectOverlay";
-import type { Effect } from "@/types";
 
-export interface CameraEntry {
-  url: string;
-  xcorrOffset: number;
-  syncConfidence?: number;
-  fileName?: string;
-}
+// Re-export CameraEntry from shared types for backwards compatibility
+export type { CameraEntry } from "@/types";
 
 interface VideoPreviewProps {
   colorGrade: ColorGrade;

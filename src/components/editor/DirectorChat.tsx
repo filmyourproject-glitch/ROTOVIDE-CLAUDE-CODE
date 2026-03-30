@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Loader2, CheckCircle, X, Sparkles, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Section, TimelineClip } from "@/types";
-import type { StylePreset } from "@/types";
+import type { Section, TimelineClip, StylePreset } from "@/types";
 import type { EditManifest } from "@/lib/editManifest";
 import { getManifestStats } from "@/lib/manifestInterpreter";
 import { ManifestDiffSummary } from "./ManifestDiffSummary";

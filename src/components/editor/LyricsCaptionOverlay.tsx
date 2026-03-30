@@ -1,16 +1,14 @@
 import { useMemo } from "react";
-import type {
-  LyricWord,
-  CaptionStyle,
-  CaptionSize,
-  CaptionPosition,
-} from "@/lib/lyricsEngine";
 import {
   groupWordsIntoLines,
   getCurrentLineIndex,
   getActiveWordIndex,
   getCaptionFontSize,
   getCaptionPositionStyle,
+  type LyricWord,
+  type CaptionStyle,
+  type CaptionSize,
+  type CaptionPosition,
 } from "@/lib/lyricsEngine";
 
 interface LyricsCaptionOverlayProps {

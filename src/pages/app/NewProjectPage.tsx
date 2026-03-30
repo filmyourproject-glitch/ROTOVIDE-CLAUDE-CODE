@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Smartphone, Monitor, Layers, Scissors, Clapperboard, Zap, Sparkles, Music, Upload, CheckCircle2, Lock, Palette, X, Plus, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Smartphone, Monitor, Layers, Scissors, Clapperboard, Zap, Sparkles, Music, Upload, CheckCircle2, Lock, X, Plus, Loader2, AlertCircle } from "lucide-react";
 import { getPendingFile, clearPendingFile } from "@/lib/pendingFileStore";
 import { runBeatSync } from "@/lib/beatSyncEngine";
 import { Button } from "@/components/ui/button";

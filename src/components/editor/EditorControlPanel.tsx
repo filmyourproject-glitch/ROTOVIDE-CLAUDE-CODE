@@ -337,19 +337,19 @@ export function EditorControlPanel({
               {/* Style selector */}
               <div>
                 <span className="text-[10px] font-mono text-muted-foreground mb-2 block">STYLE</span>
-                <div className="flex gap-2">
-                  {(["classic", "highlight", "karaoke"] as const).map(s => (
+                <div className="grid grid-cols-4 gap-2">
+                  {(["classic", "highlight", "karaoke", "bounce", "outline", "glitch", "drip", "stack3d"] as CaptionStyle[]).map(s => (
                     <button
                       key={s}
                       onClick={() => onLyricsStyleChange?.(s)}
                       className={cn(
-                        "flex-1 text-xs font-mono py-2 rounded-lg border transition-colors capitalize",
+                        "text-xs font-mono py-2 rounded-lg border transition-colors capitalize",
                         lyricsStyle === s
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border text-muted-foreground hover:border-primary/30"
                       )}
                     >
-                      {s}
+                      {s === "stack3d" ? "3D" : s}
                     </button>
                   ))}
                 </div>

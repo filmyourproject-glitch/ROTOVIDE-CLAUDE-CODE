@@ -1,15 +1,15 @@
 // Manifest Interpreter: converts EditManifest → TimelineClip[]
 // Decouples AI output format from the editor's internal runtime model.
 
-import type {
-  EditManifest,
-  Clip,
-  Effect as ManifestEffect,
-  EffectType as ManifestEffectType,
-  Transition,
-  FaceCrop as ManifestFaceCrop,
+import {
+  getClipAtTime,
+  type EditManifest,
+  type Clip,
+  type Effect as ManifestEffect,
+  type EffectType as ManifestEffectType,
+  type Transition,
+  type FaceCrop as ManifestFaceCrop,
 } from "./editManifest";
-import { getClipAtTime } from "./editManifest";
 import type { TimelineClip, Effect, CropSettings, Section } from "@/types";
 
 // ── Effect mapping tables ──────────────────────────────────────────────────

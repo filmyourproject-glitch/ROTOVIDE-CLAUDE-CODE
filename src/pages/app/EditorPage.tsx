@@ -1,8 +1,8 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, AlertTriangle, Undo2, Redo2, Download, ChevronUp, ChevronDown, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, Download, ChevronUp, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { VideoPreview } from "@/components/editor/VideoPreview";
+import { VideoPreview, type CameraEntry } from "@/components/editor/VideoPreview";
 import { Timeline } from "@/components/editor/Timeline";
 import { EditorControlPanel } from "@/components/editor/EditorControlPanel";
 import { EditingToolbar, type EditTool } from "@/components/editor/EditingToolbar";
@@ -10,20 +10,17 @@ import { MobilePanelSheet, type TabId } from "@/components/editor/MobilePanelShe
 import { useAutosave } from "@/hooks/useAutosave";
 import { useTimelineHistory } from "@/hooks/useTimelineHistory";
 import { KeyboardShortcutsDialog } from "@/components/editor/KeyboardShortcutsDialog";
-
 import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import type { EditManifest } from "@/lib/editManifest";
 import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
 import { supabase } from "@/integrations/supabase/client";
-import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section, Effect } from "@/types";
+import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section } from "@/types";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
 import type { FaceCrop } from "@/lib/faceUtils";
 import { computeBangerScore } from "@/lib/audioAnalyzer";
 import { getMuxThumbnailUrl } from "@/lib/muxThumbnails";
 import { ensureFirstClipIsPerformance } from "@/lib/beatSyncEngine";
-import type { CameraEntry } from "@/components/editor/VideoPreview";
 import { useAuth } from "@/hooks/useAuth";
-import { isProAccess } from "@/types";
 import { toast } from "sonner";
 
 // Lazy-loaded slide-out panels (must be AFTER all imports to avoid TDZ in production)

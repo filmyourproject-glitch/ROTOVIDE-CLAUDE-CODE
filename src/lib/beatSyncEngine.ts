@@ -1,8 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { StylePreset, Section, TimelineClip, AnalysisData } from "@/types";
 
-import { analyzeSongFromBuffer, detectBpmFromBuffer, findClipOffset } from "./audioAnalyzer";
-import type { AudioAnalysisResult } from "./audioAnalyzer";
+import { analyzeSongFromBuffer, detectBpmFromBuffer, findClipOffset, type AudioAnalysisResult } from "./audioAnalyzer";
 import { computeIntelligentCuts, selectNextClip } from "./intelligentCutting";
 
 export interface SyncSection {

@@ -1,15 +1,7 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getMuxThumbnailUrl, getMuxAnimatedUrl } from "@/lib/muxThumbnails";
 import { ArrowLeft, Zap, Play, Film, HardDrive, Download, Loader2, AlertTriangle, ScanFace, Plus, Upload, MessageSquare, Check, Scissors, Clapperboard, Sparkles, Lock, Link2 } from "lucide-react";
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
 import { Button } from "@/components/ui/button";
-
 import { SyncStatusBadge, FormatBadge, StyleBadge } from "@/components/projects/Badges";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
@@ -25,6 +17,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { uploadToMux } from "@/lib/muxUploader";
 import { extractPreviewFrame } from "@/lib/proxyGenerator";
 import { extractFaceKeyframes, smoothKeyframes } from "@/lib/faceTracking";
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
 
 const tabs = ["Overview", "Clips", "B-Roll", "Captions", "Exports"] as const;
 
