@@ -198,7 +198,7 @@ export default function PricingPage() {
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
             <RotovideLogo size="nav" />
-            <span className="text-xs text-muted-foreground">Built for rap artists.</span>
+            <span className="text-xs text-muted-foreground">Built for independent Christian artists.</span>
           </div>
           <div className="flex gap-6 text-xs text-muted-foreground">
             <Link to="/" className="hover:text-foreground transition-colors">Home</Link>

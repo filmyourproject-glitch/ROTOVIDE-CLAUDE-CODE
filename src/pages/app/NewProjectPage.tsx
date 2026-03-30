@@ -755,7 +755,7 @@ export default function NewProjectPage() {
                 { value: "raw_cut" as StylePreset, icon: Scissors, label: "Raw Cut", desc: "Hard cuts on every beat. Classic, clean, no effects.", tier: "free" },
                 { value: "cinematic" as StylePreset, icon: Clapperboard, label: "Cinematic", desc: "Slow zooms, film grain, smooth cuts. The Lyrical Lemonade look.", tier: "pro" },
                 { value: "hype" as StylePreset, icon: Zap, label: "Hype", desc: "Camera shake on every kick. Whip cuts. Film burns. Pure energy.", tier: "pro" },
-                { value: "vibe" as StylePreset, icon: Sparkles, label: "Vibe", desc: "Film burns, lo-fi texture, warm glow. For storytelling rap.", tier: "pro" },
+                { value: "vibe" as StylePreset, icon: Sparkles, label: "Vibe", desc: "Film burns, lo-fi texture, warm glow. For storytelling and worship.", tier: "pro" },
               ]).map(({ value, icon: Icon, label, desc, tier }) => (
                 <button key={value} onClick={() => setStyle(value)} className={cn("relative surface-card p-5 text-left transition-default rounded-xl", style === value ? "glow-primary border-primary" : "hover:border-primary/30")}>
                   {tier !== "free" && <span className="absolute top-3 right-3 text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/15 text-primary flex items-center gap-1"><Lock className="w-3 h-3" /> Pro</span>}
