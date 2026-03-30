@@ -15,16 +15,17 @@ import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } fro
 import type { EditManifest } from "@/lib/editManifest";
 import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
 
-import { EditorSidebar, type SidebarTool } from "@/components/editor/EditorSidebar";
-import { AIDirectorPanel } from "@/components/editor/AIDirectorPanel";
-import { EditorTour } from "@/components/editor/EditorTour";
-import { SaveTemplateModal } from "@/components/editor/SaveTemplateModal";
+import type { SidebarTool } from "@/components/editor/EditorSidebar";
 import { supabase } from "@/integrations/supabase/client";
 
-// Lazy-loaded slide-out panels (only loaded when opened)
+// Lazy-loaded panels (avoids TDZ in production builds)
 const ExportPanel = lazy(() => import("@/components/editor/ExportPanel").then(m => ({ default: m.ExportPanel })));
 const DirectorChat = lazy(() => import("@/components/editor/DirectorChat").then(m => ({ default: m.DirectorChat })));
 const StyleComparisonPanel = lazy(() => import("@/components/editor/StyleComparisonPanel").then(m => ({ default: m.StyleComparisonPanel })));
+const EditorSidebarLazy = lazy(() => import("@/components/editor/EditorSidebar").then(m => ({ default: m.EditorSidebar })));
+const AIDirectorPanelLazy = lazy(() => import("@/components/editor/AIDirectorPanel").then(m => ({ default: m.AIDirectorPanel })));
+const EditorTourLazy = lazy(() => import("@/components/editor/EditorTour").then(m => ({ default: m.EditorTour })));
+const SaveTemplateModalLazy = lazy(() => import("@/components/editor/SaveTemplateModal").then(m => ({ default: m.SaveTemplateModal })));
 import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section, Effect } from "@/types";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
 import type { FaceCrop } from "@/lib/faceUtils";
@@ -1403,7 +1404,7 @@ export default function EditorPage() {
         >
           {sidebarTool === "ai_director" ? (
             <div className="p-4 overflow-y-auto flex-1">
-              <AIDirectorPanel />
+              <Suspense fallback={null}><AIDirectorPanelLazy /></Suspense>
             </div>
           ) : (
             <EditorControlPanel {...controlPanelProps} />
@@ -1411,7 +1412,7 @@ export default function EditorPage() {
         </div>
 
         {/* EDITOR SIDEBAR — right icon strip */}
-        <EditorSidebar activeTool={sidebarTool} onToolChange={setSidebarTool} />
+        <Suspense fallback={null}><EditorSidebarLazy activeTool={sidebarTool} onToolChange={setSidebarTool} /></Suspense>
       </div>
 
       {/* ── COLLAPSIBLE TIMELINE ── */}
@@ -1542,30 +1543,34 @@ export default function EditorPage() {
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
       {/* Save Template Modal — shown after export */}
-      <SaveTemplateModal
-        open={showTemplateModal}
-        onClose={() => setShowTemplateModal(false)}
-        settings={{
-          colorGrade,
-          colorGradeIntensity,
-          captionStyle: lyricsStyle,
-          captionSize: lyricsSize,
-          captionPosition: lyricsPosition,
-          format,
-          stylePreset,
-        }}
-      />
+      <Suspense fallback={null}>
+        <SaveTemplateModalLazy
+          open={showTemplateModal}
+          onClose={() => setShowTemplateModal(false)}
+          settings={{
+            colorGrade,
+            colorGradeIntensity,
+            captionStyle: lyricsStyle,
+            captionSize: lyricsSize,
+            captionPosition: lyricsPosition,
+            format,
+            stylePreset,
+          }}
+        />
+      </Suspense>
 
       {/* Editor Tour — guided onboarding */}
-      <EditorTour
-        open={showTour}
-        onComplete={async () => {
-          setShowTour(false);
-          if (user) {
-            await supabase.from("profiles").update({ has_seen_editor_tour: true }).eq("id", user.id);
-          }
-        }}
-      />
+      <Suspense fallback={null}>
+        <EditorTourLazy
+          open={showTour}
+          onComplete={async () => {
+            setShowTour(false);
+            if (user) {
+              await supabase.from("profiles").update({ has_seen_editor_tour: true }).eq("id", user.id);
+            }
+          }}
+        />
+      </Suspense>
     </div>
   );
 }
