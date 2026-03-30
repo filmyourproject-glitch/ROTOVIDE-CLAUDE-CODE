@@ -18,9 +18,6 @@ export default defineConfig(() => ({
     },
   },
   build: {
-    // Disable minification to prevent TDZ from variable reordering
-    // in the 1500-line EditorPage component
-    minify: false,
     rollupOptions: {
       output: {
         manualChunks: {

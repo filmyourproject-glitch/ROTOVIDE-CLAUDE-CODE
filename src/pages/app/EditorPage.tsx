@@ -275,6 +275,13 @@ export default function EditorPage() {
     toast(`Edit applied — press ${isMac ? "⌘Z" : "Ctrl+Z"} to undo`, { duration: 4000 });
   }, [timelineData, clips, updateTimelineWithHistory]);
 
+  // Volume controls (must be before keyboard handler that references them)
+  const handleMuteToggle = useCallback(() => setMuted(prev => !prev), []);
+  const handleVolumeChange = useCallback((v: number) => {
+    setVolume(v);
+    if (v > 0 && muted) setMuted(false);
+  }, [muted]);
+
   // ── Keyboard Shortcuts ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -997,13 +1004,6 @@ export default function EditorPage() {
   const handleFrameForward = useCallback(() => {
     setCurrentTime(t => Math.min(duration, t + 1 / 30));
   }, [duration]);
-
-  // Volume controls
-  const handleMuteToggle = useCallback(() => setMuted(prev => !prev), []);
-  const handleVolumeChange = useCallback((v: number) => {
-    setVolume(v);
-    if (v > 0 && muted) setMuted(false);
-  }, [muted]);
 
   useEffect(() => {
     const audio = audioRef.current;
