@@ -15,17 +15,12 @@ import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } fro
 import type { EditManifest } from "@/lib/editManifest";
 import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
 
-import type { SidebarTool } from "@/components/editor/EditorSidebar";
 import { supabase } from "@/integrations/supabase/client";
 
-// Lazy-loaded panels (avoids TDZ in production builds)
+// Lazy-loaded slide-out panels (only loaded when opened)
 const ExportPanel = lazy(() => import("@/components/editor/ExportPanel").then(m => ({ default: m.ExportPanel })));
 const DirectorChat = lazy(() => import("@/components/editor/DirectorChat").then(m => ({ default: m.DirectorChat })));
 const StyleComparisonPanel = lazy(() => import("@/components/editor/StyleComparisonPanel").then(m => ({ default: m.StyleComparisonPanel })));
-const EditorSidebarLazy = lazy(() => import("@/components/editor/EditorSidebar").then(m => ({ default: m.EditorSidebar })));
-const AIDirectorPanelLazy = lazy(() => import("@/components/editor/AIDirectorPanel").then(m => ({ default: m.AIDirectorPanel })));
-const EditorTourLazy = lazy(() => import("@/components/editor/EditorTour").then(m => ({ default: m.EditorTour })));
-const SaveTemplateModalLazy = lazy(() => import("@/components/editor/SaveTemplateModal").then(m => ({ default: m.SaveTemplateModal })));
 import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section, Effect } from "@/types";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
 import type { FaceCrop } from "@/lib/faceUtils";
@@ -115,9 +110,6 @@ export default function EditorPage() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [styleCompOpen, setStyleCompOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [sidebarTool, setSidebarTool] = useState<SidebarTool>(null);
-  const [showTour, setShowTour] = useState(false);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [currentManifestId, setCurrentManifestId] = useState<string | null>(null);
   const [activeManifest, setActiveManifest] = useState<EditManifest | null>(null);
 
@@ -1307,7 +1299,6 @@ export default function EditorPage() {
           className="hidden md:flex h-9 px-3 gap-2 shrink-0"
           style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2, fontSize: 14 }}
           onClick={() => setDirectorChatOpen(true)}
-          data-tour="director-chat"
         >
           <Sparkles className="w-4 h-4" />
           DIRECTOR
@@ -1331,7 +1322,6 @@ export default function EditorPage() {
           className="h-9 px-4 gap-2 shrink-0"
           style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2, fontSize: 14 }}
           onClick={() => setExportPanelOpen(true)}
-          data-tour="export"
         >
           <Download className="w-4 h-4" />
           EXPORT
@@ -1402,23 +1392,13 @@ export default function EditorPage() {
           className="hidden md:flex md:w-[340px] xl:w-[380px] flex-col border-l border-border shrink-0 overflow-hidden"
           style={{ background: "hsl(0 0% 6.7%)" }}
         >
-          {sidebarTool === "ai_director" ? (
-            <div className="p-4 overflow-y-auto flex-1">
-              <Suspense fallback={null}><AIDirectorPanelLazy /></Suspense>
-            </div>
-          ) : (
-            <EditorControlPanel {...controlPanelProps} />
-          )}
+          <EditorControlPanel {...controlPanelProps} />
         </div>
-
-        {/* EDITOR SIDEBAR — right icon strip */}
-        <Suspense fallback={null}><EditorSidebarLazy activeTool={sidebarTool} onToolChange={setSidebarTool} /></Suspense>
       </div>
 
       {/* ── COLLAPSIBLE TIMELINE ── */}
       <div
         className="shrink-0 border-t border-border"
-        data-tour="timeline"
         style={isMobile && !timelineExpanded ? { paddingBottom: 52 } : isMobile ? { paddingBottom: 60 } : undefined}
       >
         {timelineExpanded ? (
@@ -1542,35 +1522,6 @@ export default function EditorPage() {
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
-      {/* Save Template Modal — shown after export */}
-      <Suspense fallback={null}>
-        <SaveTemplateModalLazy
-          open={showTemplateModal}
-          onClose={() => setShowTemplateModal(false)}
-          settings={{
-            colorGrade,
-            colorGradeIntensity,
-            captionStyle: lyricsStyle,
-            captionSize: lyricsSize,
-            captionPosition: lyricsPosition,
-            format,
-            stylePreset,
-          }}
-        />
-      </Suspense>
-
-      {/* Editor Tour — guided onboarding */}
-      <Suspense fallback={null}>
-        <EditorTourLazy
-          open={showTour}
-          onComplete={async () => {
-            setShowTour(false);
-            if (user) {
-              await supabase.from("profiles").update({ has_seen_editor_tour: true }).eq("id", user.id);
-            }
-          }}
-        />
-      </Suspense>
     </div>
   );
 }

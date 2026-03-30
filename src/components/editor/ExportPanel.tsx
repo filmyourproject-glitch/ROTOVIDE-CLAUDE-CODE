@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { X, Copy, Check, RefreshCw, Download, Loader2, Lock, Maximize2 } from "lucide-react";
+import { X, Copy, Check, RefreshCw, Download, Loader2, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { ProcessingProgress } from "@/components/shared/ProcessingProgress";
 import { toast } from "sonner";
 import type { Section } from "@/types";
 
@@ -70,7 +69,6 @@ export function ExportPanel({
   const [progressPercent, setProgressPercent] = useState(0);
   const [progressStep, setProgressStep] = useState("");
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
-  const [fullscreenProgress, setFullscreenProgress] = useState(false);
 
   // Shared handler for export status changes (used by both realtime and polling)
   const applyStatusUpdate = useCallback((status: string, url?: string | null) => {
@@ -714,29 +712,17 @@ export function ExportPanel({
                       <span className="text-[11px] font-mono text-muted-foreground">
                         {progressStep || "Processing..."}
                       </span>
-                      <span className="text-[11px] font-mono text-primary flex items-center gap-2">
+                      <span className="text-[11px] font-mono text-primary">
                         {progressPercent}%
                         {etaSeconds != null && etaSeconds > 0 && (
-                          <span className="text-muted-foreground">
+                          <span className="text-muted-foreground ml-1.5">
                             ~{etaSeconds < 60 ? `${etaSeconds}s` : `${Math.ceil(etaSeconds / 60)}m`}
                           </span>
                         )}
-                        <button onClick={() => setFullscreenProgress(true)} className="text-muted-foreground hover:text-foreground transition-colors" title="Fullscreen view">
-                          <Maximize2 className="w-3 h-3" />
-                        </button>
                       </span>
                     </div>
                   </div>
                 )}
-
-                {/* Fullscreen progress modal */}
-                <ProcessingProgress
-                  open={fullscreenProgress && exporting}
-                  percent={progressPercent}
-                  message={progressStep || "Processing your video..."}
-                  etaSeconds={etaSeconds}
-                  onCancel={() => setFullscreenProgress(false)}
-                />
 
                 {/* Download button when render is complete */}
                 {downloadUrl && !exporting && renderSteps.every(s => s.status === "done") && (
