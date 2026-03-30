@@ -18,6 +18,16 @@ export default defineConfig(() => ({
     },
   },
   build: {
+    // Use terser instead of esbuild for minification — esbuild reorders
+    // const declarations within function scope causing TDZ crashes in
+    // large components (EditorPage 1500+ lines)
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        // Preserve declaration order to prevent TDZ
+        sequences: false,
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {
