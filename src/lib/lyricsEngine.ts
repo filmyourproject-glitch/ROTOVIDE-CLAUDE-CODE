@@ -13,7 +13,7 @@ export interface LyricsData {
   generated_at: string;
 }
 
-export type CaptionStyle = "classic" | "highlight" | "karaoke";
+export type CaptionStyle = "classic" | "highlight" | "karaoke" | "bounce" | "outline" | "glitch" | "drip" | "stack3d";
 export type CaptionSize = "S" | "M" | "L";
 export type CaptionPosition = "top" | "middle" | "bottom";
 

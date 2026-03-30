@@ -6,17 +6,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { uploadToMux } from "@/lib/muxUploader";
 import { LyricsCaptionOverlay } from "@/components/editor/LyricsCaptionOverlay";
-import type { CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
+import { CaptionPresetGrid } from "@/components/captions/CaptionPresetGrid";
+import type { CaptionStyleExtended } from "@/lib/captionPresets";
+import type { CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
 type Step = "upload" | "transcribing" | "preview";
-
-const CAPTION_STYLES: { id: CaptionStyle; label: string; desc: string }[] = [
-  { id: "highlight", label: "Highlight", desc: "Active word glows in green" },
-  { id: "karaoke",   label: "Karaoke",   desc: "Word fills with color as it's spoken" },
-  { id: "classic",   label: "Classic",   desc: "Clean white text, line by line" },
-];
 
 const CAPTION_SIZES: CaptionSize[] = ["S", "M", "L"];
 const CAPTION_POSITIONS: { id: CaptionPosition; label: string }[] = [
@@ -34,7 +30,7 @@ export default function CaptionsPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [lyricsWords, setLyricsWords] = useState<any[]>([]);
-  const [captionStyle, setCaptionStyle] = useState<CaptionStyle>("highlight");
+  const [captionStyle, setCaptionStyle] = useState<CaptionStyleExtended>("highlight");
   const [captionSize, setCaptionSize] = useState<CaptionSize>("M");
   const [captionPosition, setCaptionPosition] = useState<CaptionPosition>("bottom");
   const [currentTime, setCurrentTime] = useState(0);
@@ -137,19 +133,8 @@ export default function CaptionsPage() {
       {/* STEP: UPLOAD */}
       {step === "upload" && (
         <div className="space-y-5">
-          {/* Style preview cards */}
-          <div className="grid grid-cols-3 gap-3">
-            {CAPTION_STYLES.map(s => (
-              <div key={s.id} className="rounded-xl border p-4 text-center space-y-1.5"
-                style={{ background: 'hsl(0 0% 6.7%)', borderColor: 'hsla(36, 30%, 92.2%, 0.08)' }}>
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
-                  <MessageSquare className="w-4 h-4 text-primary" />
-                </div>
-                <p className="text-xs font-semibold text-foreground">{s.label}</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">{s.desc}</p>
-              </div>
-            ))}
-          </div>
+          {/* Caption style presets */}
+          <CaptionPresetGrid selected={captionStyle} onChange={setCaptionStyle} />
 
           {/* Upload zone */}
           <div
@@ -240,22 +225,7 @@ export default function CaptionsPage() {
 
             <div className="space-y-2">
               <label className="text-[10px] font-mono text-muted-foreground tracking-widest">CAPTION STYLE</label>
-              <div className="grid grid-cols-3 gap-2">
-                {CAPTION_STYLES.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => setCaptionStyle(s.id)}
-                    className={cn(
-                      "py-2.5 rounded-xl border text-xs font-mono transition-all",
-                      captionStyle === s.id
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:border-primary/30"
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
+              <CaptionPresetGrid selected={captionStyle} onChange={setCaptionStyle} />
             </div>
 
             <div className="space-y-2">

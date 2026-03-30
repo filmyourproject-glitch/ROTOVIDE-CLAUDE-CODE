@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { getMuxThumbnailUrl } from "@/lib/muxThumbnails";
 import { Film, Plus, ArrowRight, Loader2, Music, Video, Check, Scissors, MessageSquare, Crop, X, Zap, Info, CircleDot } from "lucide-react";
+import { ETABadge } from "@/components/shared/ETABadge";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { storePendingFile } from "@/lib/pendingFileStore";
 import { Button } from "@/components/ui/button";
@@ -62,17 +63,19 @@ function ToolIcon({ tool }: { tool: Tool }) {
 
 /* ─── Project Card ─── */
 function ProjectCard({ project, thumbnailUrl }: { project: Project; thumbnailUrl?: string | null }) {
+  const isProcessing = project.sync_status === "processing";
   return (
     <Link
       to={`/app/projects/${project.id}`}
       className="group block overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary/20"
     >
-      <div className="h-32 flex items-center justify-center bg-background">
+      <div className="relative h-32 flex items-center justify-center bg-background">
         {thumbnailUrl ? (
           <img src={thumbnailUrl} alt={project.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <RotovideLogoMark size={40} />
         )}
+        {isProcessing && <ETABadge percent={50} />}
       </div>
       <div className="p-3 space-y-1.5">
         <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">

@@ -19,6 +19,9 @@ import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
 const ExportPanel = lazy(() => import("@/components/editor/ExportPanel").then(m => ({ default: m.ExportPanel })));
 const DirectorChat = lazy(() => import("@/components/editor/DirectorChat").then(m => ({ default: m.DirectorChat })));
 const StyleComparisonPanel = lazy(() => import("@/components/editor/StyleComparisonPanel").then(m => ({ default: m.StyleComparisonPanel })));
+import { EditorSidebar, type SidebarTool } from "@/components/editor/EditorSidebar";
+import { AIDirectorPanel } from "@/components/editor/AIDirectorPanel";
+import { EditorTour } from "@/components/editor/EditorTour";
 import { supabase } from "@/integrations/supabase/client";
 import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section, Effect } from "@/types";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
@@ -109,6 +112,8 @@ export default function EditorPage() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [styleCompOpen, setStyleCompOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [sidebarTool, setSidebarTool] = useState<SidebarTool>(null);
+  const [showTour, setShowTour] = useState(false);
   const [currentManifestId, setCurrentManifestId] = useState<string | null>(null);
   const [activeManifest, setActiveManifest] = useState<EditManifest | null>(null);
 
@@ -1298,6 +1303,7 @@ export default function EditorPage() {
           className="hidden md:flex h-9 px-3 gap-2 shrink-0"
           style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2, fontSize: 14 }}
           onClick={() => setDirectorChatOpen(true)}
+          data-tour="director-chat"
         >
           <Sparkles className="w-4 h-4" />
           DIRECTOR
@@ -1321,6 +1327,7 @@ export default function EditorPage() {
           className="h-9 px-4 gap-2 shrink-0"
           style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2, fontSize: 14 }}
           onClick={() => setExportPanelOpen(true)}
+          data-tour="export"
         >
           <Download className="w-4 h-4" />
           EXPORT
@@ -1391,13 +1398,23 @@ export default function EditorPage() {
           className="hidden md:flex md:w-[340px] xl:w-[380px] flex-col border-l border-border shrink-0 overflow-hidden"
           style={{ background: "hsl(0 0% 6.7%)" }}
         >
-          <EditorControlPanel {...controlPanelProps} />
+          {sidebarTool === "ai_director" ? (
+            <div className="p-4 overflow-y-auto flex-1">
+              <AIDirectorPanel />
+            </div>
+          ) : (
+            <EditorControlPanel {...controlPanelProps} />
+          )}
         </div>
+
+        {/* EDITOR SIDEBAR — right icon strip */}
+        <EditorSidebar activeTool={sidebarTool} onToolChange={setSidebarTool} />
       </div>
 
       {/* ── COLLAPSIBLE TIMELINE ── */}
       <div
         className="shrink-0 border-t border-border"
+        data-tour="timeline"
         style={isMobile && !timelineExpanded ? { paddingBottom: 52 } : isMobile ? { paddingBottom: 60 } : undefined}
       >
         {timelineExpanded ? (
@@ -1520,6 +1537,17 @@ export default function EditorPage() {
 
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
+      {/* Editor Tour — guided onboarding */}
+      <EditorTour
+        open={showTour}
+        onComplete={async () => {
+          setShowTour(false);
+          if (user) {
+            await supabase.from("profiles").update({ has_seen_editor_tour: true }).eq("id", user.id);
+          }
+        }}
+      />
     </div>
   );
 }
