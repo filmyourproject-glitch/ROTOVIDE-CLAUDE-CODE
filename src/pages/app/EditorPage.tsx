@@ -14,13 +14,7 @@ import { KeyboardShortcutsDialog } from "@/components/editor/KeyboardShortcutsDi
 import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import type { EditManifest } from "@/lib/editManifest";
 import { convertManifestToTimeline } from "@/lib/manifestInterpreter";
-
 import { supabase } from "@/integrations/supabase/client";
-
-// Lazy-loaded slide-out panels (only loaded when opened)
-const ExportPanel = lazy(() => import("@/components/editor/ExportPanel").then(m => ({ default: m.ExportPanel })));
-const DirectorChat = lazy(() => import("@/components/editor/DirectorChat").then(m => ({ default: m.DirectorChat })));
-const StyleComparisonPanel = lazy(() => import("@/components/editor/StyleComparisonPanel").then(m => ({ default: m.StyleComparisonPanel })));
 import type { Project, StylePreset, ColorGrade, VideoFormat, TimelineData, TimelineClip, Section, Effect } from "@/types";
 import type { LyricWord, CaptionStyle, CaptionSize, CaptionPosition } from "@/lib/lyricsEngine";
 import type { FaceCrop } from "@/lib/faceUtils";
@@ -31,6 +25,11 @@ import type { CameraEntry } from "@/components/editor/VideoPreview";
 import { useAuth } from "@/hooks/useAuth";
 import { isProAccess } from "@/types";
 import { toast } from "sonner";
+
+// Lazy-loaded slide-out panels (must be AFTER all imports to avoid TDZ in production)
+const ExportPanel = lazy(() => import("@/components/editor/ExportPanel").then(m => ({ default: m.ExportPanel })));
+const DirectorChat = lazy(() => import("@/components/editor/DirectorChat").then(m => ({ default: m.DirectorChat })));
+const StyleComparisonPanel = lazy(() => import("@/components/editor/StyleComparisonPanel").then(m => ({ default: m.StyleComparisonPanel })));
 
 // Fallback mock data only used when timeline_data has no real clips
 const MOCK_BEATS = Array.from({ length: 80 }, (_, i) => i * (60 / 140));
