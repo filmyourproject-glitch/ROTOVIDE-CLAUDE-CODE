@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,6 +30,8 @@ const schema = z
 type FormData = z.infer<typeof schema>;
 
 export default function WaitlistFormPage() {
+  const [searchParams] = useSearchParams();
+  const prefillEmail = searchParams.get("email") || "";
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState("");
 
@@ -43,7 +45,7 @@ export default function WaitlistFormPage() {
     resolver: zodResolver(schema),
     defaultValues: {
       name: "",
-      email: "",
+      email: prefillEmail,
       instagram_url: "",
       tiktok_url: "",
       mission: "",

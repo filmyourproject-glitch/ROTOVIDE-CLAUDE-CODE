@@ -1,100 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2 } from "lucide-react";
 import { RotovideLogo } from "@/components/ui/RotovideLogo";
-import { supabase } from "@/integrations/supabase/client";
 import "./LandingPage.css";
 
 /* ═══════════════════════════════════════
    WAITLIST FORM — reused in Hero + CTA
    ═══════════════════════════════════════ */
-function WaitlistForm({ wrapperClass }: { wrapperClass?: string }) {
+function WaitlistForm() {
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !email.includes("@")) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const { error: sbError } = await supabase
-        .from("waitlist")
-        .insert({ email, source: "landing_page" });
-      if (sbError) {
-        console.error("Waitlist insert error:", sbError);
-        if (sbError.code === "23505") {
-          setSubmitted(true);
-        } else {
-          setError(sbError.message || "Something went wrong. Please try again.");
-        }
-      } else {
-        setSubmitted(true);
-      }
-    } catch (err) {
-      console.error("Waitlist catch error:", err);
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    // Navigate to full waitlist form with email prefilled
+    const params = email ? `?email=${encodeURIComponent(email)}` : "";
+    window.location.href = `/waitlist${params}`;
   };
 
-  if (submitted) {
-    return (
-      <div className={wrapperClass} style={{ textAlign: "center", padding: "24px 0" }}>
-        <p style={{
-          fontFamily: "'Bebas Neue', cursive",
-          fontSize: "24px",
-          color: "var(--acc)",
-          letterSpacing: "2px",
-          marginBottom: "6px",
-        }}>
-          ✓ YOU'RE ON THE LIST!
-        </p>
-        <p style={{
-          fontFamily: "'Space Mono', monospace",
-          fontSize: "12px",
-          color: "var(--fg60)",
-          letterSpacing: "1px",
-        }}>
-          We'll send you an exclusive launch link with a free trial.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <form className={`rv-email${wrapperClass ? " " + wrapperClass : ""}`} onSubmit={handleSubmit}>
+    <form className="rv-email" onSubmit={handleSubmit}>
       <input
         type="email"
         className="rv-input"
         placeholder="Enter your email address"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        disabled={loading}
       />
-      <button type="submit" className="rv-btn" disabled={loading}>
-        {loading
-          ? <Loader2 style={{ width: 16, height: 16, display: "inline", animation: "spin 1s linear infinite" }} />
-          : "JOIN THE WAITLIST"}
+      <button type="submit" className="rv-btn">
+        JOIN THE WAITLIST
       </button>
-      {error && (
-        <p style={{
-          fontSize: "13px",
-          color: "#FF4747",
-          marginTop: "8px",
-          width: "100%",
-          textAlign: "center",
-          fontFamily: "'Space Mono', monospace",
-        }}>
-          {error}
-        </p>
-      )}
     </form>
   );
 }
@@ -899,7 +832,7 @@ function FinalCTA() {
           READY TO REACH<br />
           <span className="a">THE WORLD?</span>
         </h2>
-        <WaitlistForm wrapperClass="rv-r" />
+        <WaitlistForm />
         <div className="rv-trust rv-r" style={{ marginTop: 10 }}>
           <span>EARLY ACCESS</span>
           <span>·</span>
