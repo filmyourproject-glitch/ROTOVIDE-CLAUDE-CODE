@@ -351,7 +351,7 @@ function FourTools() {
   return (
     <section className="rv-sec" id="tools">
       <div className="rv-w">
-        <span className="rv-lbl rv-r">FOUR TOOLS. ONE SUITE.</span>
+        <span className="rv-lbl rv-r">SEVEN TOOLS. ONE SUITE.</span>
         <h2 className="rv-r">
           SESSION TO FEED.<br />
           <span className="a">NO EDITOR NEEDED.</span>
@@ -425,6 +425,57 @@ function FourTools() {
               <span className="rv-tag">Auto-Center</span>
               <span className="rv-tag">9:16 Output</span>
               <span className="rv-tag">No Manual Crop</span>
+            </div>
+          </div>
+          <div className="rv-c rv-tc rv-r">
+            <div className="rv-tn">05</div>
+            <div className="rv-tb">ANY VIDEO → SPOTIFY-READY LOOP</div>
+            <h3>LOOP VISUALIZER</h3>
+            <p>
+              Upload any video clip and ROTOVIDE turns it into a seamless looping
+              visualizer — ready to upload directly to Spotify, Apple Music, and
+              YouTube Music. Give every track on your album a visual presence without
+              shooting new footage. One clip. Every platform.
+            </p>
+            <div className="rv-tags">
+              <span className="rv-tag">Seamless Loop</span>
+              <span className="rv-tag">Spotify Ready</span>
+              <span className="rv-tag">Apple Music</span>
+              <span className="rv-tag">YouTube Music</span>
+            </div>
+          </div>
+          <div className="rv-c rv-tc rv-r">
+            <div className="rv-tn">06</div>
+            <div className="rv-tb">TYPE IT. AI DOES THE REST.</div>
+            <h3>DIRECTOR CHAT</h3>
+            <p>
+              Don't like the pacing on the chorus? Type it. "Make the chorus cuts
+              faster." "Swap the clip at 0:45." "The drop needs more energy." The AI
+              reads your instruction, rebuilds the edit, and shows you exactly what
+              changed. No timeline. No drag handles. Just tell it what you want.
+            </p>
+            <div className="rv-tags">
+              <span className="rv-tag">Natural Language</span>
+              <span className="rv-tag">Real-Time Rebuild</span>
+              <span className="rv-tag">Change Summary</span>
+              <span className="rv-tag">Unlimited Revisions</span>
+            </div>
+          </div>
+          <div className="rv-c rv-tc rv-r">
+            <div className="rv-tn">07</div>
+            <div className="rv-tb">RAW FOOTAGE → CINEMATIC GRADE</div>
+            <h3>FILM LUTs</h3>
+            <p>
+              Apply cinema-grade color grading to your entire video with one click.
+              Browse a library of film LUTs — warm golden hour, cold desaturated mood,
+              vintage film grain, high-contrast editorial. Preview each look live on
+              your footage and lock in the look before you export.
+            </p>
+            <div className="rv-tags">
+              <span className="rv-tag">LUT Library</span>
+              <span className="rv-tag">Live Preview</span>
+              <span className="rv-tag">One-Click Grade</span>
+              <span className="rv-tag">Cinematic Color</span>
             </div>
           </div>
         </div>
@@ -721,7 +772,7 @@ function Pricing() {
   return (
     <section className="rv-sec" id="pricing">
       <div className="rv-w" style={{ textAlign: "center" }}>
-        <span className="rv-lbl rv-r">COMING SOON — PRICING</span>
+        <span className="rv-lbl rv-r">PRICING</span>
         <h2 className="rv-r" style={{ maxWidth: "none", marginLeft: "auto", marginRight: "auto" }}>
           LESS THAN ONE<br />
           <span className="a">HOUR WITH AN EDITOR.</span>
