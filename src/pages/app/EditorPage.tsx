@@ -86,7 +86,13 @@ export default function EditorPage() {
   const [trimStart, setTrimStart] = useState<number>(0);
   const [trimEnd, setTrimEnd] = useState<number | null>(null);
   const [timelineData, setTimelineData] = useState<TimelineData | null>(null);
-  
+
+  // Derived values — MUST be declared early (before callbacks that reference them)
+  // to avoid TDZ in Vite production minification
+  const beats = timelineData?.beats ?? MOCK_BEATS;
+  const sections = timelineData?.sections ?? MOCK_SECTIONS;
+  const clips = timelineData?.timeline ?? MOCK_CLIPS;
+
   const [clipMeta, setClipMeta] = useState<ClipUrlMap>({});
   const [clipUrlsLoading, setClipUrlsLoading] = useState(false);
   const [faceCrops, setFaceCrops] = useState<Record<string, FaceCrop>>({});
@@ -1022,10 +1028,6 @@ export default function EditorPage() {
         .then(({ error }) => { if (error) console.error("Chat persist error:", error); });
     }
   }, [id]);
-
-  const beats = timelineData?.beats ?? MOCK_BEATS;
-  const sections = timelineData?.sections ?? MOCK_SECTIONS;
-  const clips = timelineData?.timeline ?? MOCK_CLIPS;
 
   // Determine the current clip at the playhead
   const currentClipIndex = useMemo(() => {
