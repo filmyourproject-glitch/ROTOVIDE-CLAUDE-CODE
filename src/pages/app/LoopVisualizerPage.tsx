@@ -6,6 +6,8 @@ import { ProcessingProgress } from "@/components/shared/ProcessingProgress";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadToMux } from "@/lib/muxUploader";
 import { useAuth } from "@/hooks/useAuth";
+import { useCreditSystem } from "@/hooks/useCreditSystem";
+import { toast } from "sonner";
 
 type Step = "input" | "uploading" | "processing" | "preview" | "done";
 type LoopDuration = 6 | 10 | 15 | 30;
@@ -43,17 +45,35 @@ export default function LoopVisualizerPage() {
     }
   };
 
+  const { canExport, deductCredit, totalAvailable } = useCreditSystem();
+
   const startProcessing = async () => {
-    if (!file) return;
+    if (!file || !user) return;
+
+    // Check credits before starting
+    const { allowed } = canExport(1);
+    if (!allowed) {
+      toast.error("Not enough credits. Please top up to continue.");
+      return;
+    }
+
     setStep("uploading");
     setProgress(0);
 
     try {
+      // Deduct credit
+      const result = await deductCredit(`loop-${Date.now()}`, 1);
+      if (!result?.success) {
+        toast.error("Failed to deduct credit. Please try again.");
+        setStep("input");
+        return;
+      }
+
       // Create project
       const { data: project, error: projErr } = await supabase
         .from("projects")
         .insert({
-          user_id: user!.id,
+          user_id: user.id,
           name: `Loop — ${file.name.replace(/\.[^.]+$/, "")}`,
           type: "loop_visualizer",
           status: "active",
@@ -105,8 +125,9 @@ export default function LoopVisualizerPage() {
       }
 
       setStep("preview");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Upload failed:", err);
+      toast.error(err?.message || "Upload failed — please try again.");
       setStep("input");
     }
   };

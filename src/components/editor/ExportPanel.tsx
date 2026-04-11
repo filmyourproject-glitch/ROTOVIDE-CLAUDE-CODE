@@ -30,6 +30,7 @@ interface ExportPanelProps {
   bangerEnd?: number;
   hasLyrics?: boolean;
   manifestId?: string;
+  onExportComplete?: () => void;
 }
 
 export function ExportPanel({
@@ -45,6 +46,7 @@ export function ExportPanel({
   bangerEnd,
   hasLyrics,
   manifestId,
+  onExportComplete,
 }: ExportPanelProps) {
   // Format selection
   const [selectedFormats, setSelectedFormats] = useState<ExportFormat[]>(["9:16", "16:9"]);
@@ -85,6 +87,7 @@ export function ExportPanel({
       setRenderSteps(prev => prev.map(s => ({ ...s, status: "done" as const })));
       setExporting(false);
       toast.success("Your video is ready to download!");
+      onExportComplete?.();
     } else if (status === "failed") {
       setRenderSteps(prev => {
         const activeIdx = prev.findIndex(st => st.status === "active");

@@ -6,6 +6,8 @@ import { ProcessingProgress } from "@/components/shared/ProcessingProgress";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadToMux } from "@/lib/muxUploader";
 import { useAuth } from "@/hooks/useAuth";
+import { useCreditSystem } from "@/hooks/useCreditSystem";
+import { toast } from "sonner";
 
 type Step = "input" | "uploading" | "tracking" | "preview" | "done";
 type OutputFormat = "9:16" | "1:1" | "4:5";
@@ -43,12 +45,30 @@ export default function ReframePage() {
     }
   };
 
+  const { canExport, deductCredit, totalAvailable } = useCreditSystem();
+
   const startProcessing = async () => {
     if (!file || !user) return;
+
+    // Check credits before starting
+    const { allowed } = canExport(1);
+    if (!allowed) {
+      toast.error("Not enough credits. Please top up to continue.");
+      return;
+    }
+
     setStep("uploading");
     setUploadProgress(0);
 
     try {
+      // Deduct credit
+      const result = await deductCredit(`reframe-${Date.now()}`, 1);
+      if (!result?.success) {
+        toast.error("Failed to deduct credit. Please try again.");
+        setStep("input");
+        return;
+      }
+
       // Create project
       const { data: project, error: projErr } = await supabase
         .from("projects")
@@ -86,8 +106,9 @@ export default function ReframePage() {
 
       setUploadProgress(100);
       startFaceTracking();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Upload failed:", err);
+      toast.error(err?.message || "Upload failed — please try again.");
       setStep("input");
     }
   };

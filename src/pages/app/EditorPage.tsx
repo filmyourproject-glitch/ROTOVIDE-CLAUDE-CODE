@@ -569,6 +569,18 @@ export default function EditorPage() {
       }
 
       setLoadState("ready");
+
+      // Auto-trigger editor tour for first-time users
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("has_seen_editor_tour")
+          .eq("id", user.id)
+          .single();
+        if (profile && !profile.has_seen_editor_tour) {
+          setShowTour(true);
+        }
+      }
     })();
   }, [id]);
 
@@ -1537,6 +1549,9 @@ export default function EditorPage() {
             bangerEnd={bangerResult?.endTime}
             hasLyrics={lyricsWords.length > 0}
             manifestId={currentManifestId ?? undefined}
+            onExportComplete={() => {
+              setTimeout(() => setShowTemplateModal(true), 2000);
+            }}
           />
         </Suspense>
       )}
