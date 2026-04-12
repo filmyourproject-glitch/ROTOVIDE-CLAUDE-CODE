@@ -198,7 +198,7 @@ export default function WaitlistFormPage() {
                 />
                 <div>
                   <span className="text-sm" style={{ color: "rgba(242,237,228,0.7)" }}>
-                    I agree to use ROTOVIDE to further the Kingdom
+                    I agree to ROTOVIDE's terms of use
                   </span>
                   {errors.agreed_to_terms && (
                     <p className="text-xs mt-1" style={{ color: "#FF4747" }}>

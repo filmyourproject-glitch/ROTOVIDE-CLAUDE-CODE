@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { RotovideLogo } from "@/components/ui/RotovideLogo";
+import { supabase } from "@/integrations/supabase/client";
 import "./LandingPage.css";
 
 /* ═══════════════════════════════════════
@@ -8,13 +9,53 @@ import "./LandingPage.css";
    ═══════════════════════════════════════ */
 function WaitlistForm() {
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Navigate to full waitlist form with email prefilled
-    const params = email ? `?email=${encodeURIComponent(email)}` : "";
-    window.location.href = `/waitlist${params}`;
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const { error: sbError } = await supabase
+        .from("waitlist")
+        .insert({ email, source: "landing_page" });
+      if (sbError) {
+        if (sbError.code === "23505") {
+          setSubmitted(true);
+        } else {
+          setError("Something went wrong. Try again.");
+        }
+      } else {
+        setSubmitted(true);
+        supabase.functions.invoke("waitlist-confirmation", {
+          body: { email },
+        });
+      }
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (submitted) {
+    return (
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <p style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 24, color: "var(--acc)", letterSpacing: 2, marginBottom: 6 }}>
+          ✓ YOU'RE ON THE LIST!
+        </p>
+        <p style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: "var(--fg60)", letterSpacing: 1 }}>
+          Check your inbox — we just sent you a confirmation.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form className="rv-email" onSubmit={handleSubmit}>
@@ -24,10 +65,16 @@ function WaitlistForm() {
         placeholder="Enter your email address"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+        disabled={loading}
       />
-      <button type="submit" className="rv-btn">
-        JOIN THE WAITLIST
+      <button type="submit" className="rv-btn" disabled={loading}>
+        {loading ? "..." : "JOIN THE WAITLIST"}
       </button>
+      {error && (
+        <p style={{ fontSize: 13, color: "#FF4747", marginTop: 8, width: "100%", textAlign: "center", fontFamily: "'Space Mono', monospace" }}>
+          {error}
+        </p>
+      )}
     </form>
   );
 }
