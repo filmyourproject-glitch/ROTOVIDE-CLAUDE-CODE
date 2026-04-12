@@ -729,9 +729,12 @@ def download_youtube():
     project_id = body.get("project_id")
     user_id = body.get("user_id")
     file_type = body.get("file_type", "performance_clip")
+    media_file_id = body.get("media_file_id")
 
     if not youtube_url or not project_id or not user_id:
         return jsonify({"error": "Missing required fields"}), 400
+
+    print(f"download-youtube: url={youtube_url} project={project_id} media_file_id={media_file_id}", flush=True)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "%(title)s.%(ext)s")
@@ -742,38 +745,77 @@ def download_youtube():
             "-o", output_path,
             youtube_url,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=tmpdir)
+        print(f"Running yt-dlp...", flush=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=tmpdir, timeout=120)
         if result.returncode != 0:
+            print(f"yt-dlp failed: {result.stderr[-500:]}", flush=True)
+            # Mark the media_file as failed so frontend stops polling
+            if media_file_id:
+                db_update("media_files", {"status": "failed"}, [{"op": "eq", "column": "id", "value": media_file_id}])
             return jsonify({"error": "Download failed", "detail": result.stderr[-300:]}), 500
 
         files = [f for f in os.listdir(tmpdir) if f.endswith(".mp4")]
         if not files:
+            if media_file_id:
+                db_update("media_files", {"status": "failed"}, [{"op": "eq", "column": "id", "value": media_file_id}])
             return jsonify({"error": "No MP4 file found after download"}), 500
 
         downloaded_file = os.path.join(tmpdir, files[0])
         file_name = files[0]
         file_size = os.path.getsize(downloaded_file)
+        print(f"Downloaded: {file_name} ({file_size} bytes)", flush=True)
 
+        # Upload to Mux via create-mux-upload edge function
         upload_res = requests.post(
             f"{SUPABASE_URL}/functions/v1/create-mux-upload",
-            headers={"Content-Type": "application/json", "X-Render-Secret": RENDER_SECRET},
-            json={"fileName": file_name},
+            headers={
+                "Content-Type": "application/json",
+                "X-Render-Secret": RENDER_SECRET,
+            },
+            json={
+                "projectId": project_id,
+                "fileName": file_name,
+                "fileType": file_type,
+                "fileSize": file_size,
+            },
         )
+        if upload_res.status_code != 200:
+            print(f"create-mux-upload failed: {upload_res.text}", flush=True)
+            if media_file_id:
+                db_update("media_files", {"status": "failed"}, [{"op": "eq", "column": "id", "value": media_file_id}])
+            return jsonify({"error": "Failed to create Mux upload"}), 500
+
         upload_data = upload_res.json()
         mux_upload_url = upload_data["uploadUrl"]
-        mux_upload_id = upload_data["uploadId"]
+        mux_upload_id = upload_data.get("uploadId")
+        mux_asset_id = upload_data.get("assetId")
+        print(f"Uploading to Mux... upload_id={mux_upload_id}", flush=True)
 
         with open(downloaded_file, "rb") as f:
             requests.put(mux_upload_url, data=f, timeout=300).raise_for_status()
 
-        db_insert("media_files", {
-            "project_id": project_id, "user_id": user_id,
-            "file_type": file_type, "file_name": file_name,
-            "size_bytes": file_size, "mux_upload_id": mux_upload_id,
-            "status": "processing",
-        })
+        print(f"Mux upload complete", flush=True)
 
-        return jsonify({"success": True, "file_name": file_name})
+        # Update the EXISTING media_files record (created by edge function)
+        # instead of inserting a duplicate
+        if media_file_id:
+            db_update("media_files", {
+                "file_name": file_name,
+                "size_bytes": file_size,
+                "mux_upload_id": mux_upload_id,
+                "mux_asset_id": mux_asset_id,
+                "status": "processing",
+            }, [{"op": "eq", "column": "id", "value": media_file_id}])
+        else:
+            # Fallback: insert new record if no media_file_id provided
+            db_insert("media_files", {
+                "project_id": project_id, "user_id": user_id,
+                "file_type": file_type, "file_name": file_name,
+                "size_bytes": file_size, "mux_upload_id": mux_upload_id,
+                "status": "processing",
+            })
+
+        return jsonify({"success": True, "file_name": file_name, "media_file_id": media_file_id})
 
 
 @app.route("/sync-clips", methods=["POST"])

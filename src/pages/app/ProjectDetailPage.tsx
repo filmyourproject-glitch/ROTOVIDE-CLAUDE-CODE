@@ -789,18 +789,20 @@ export default function ProjectDetailPage() {
         />
       </div>
 
-      {/* Sync Status Card */}
-      <SyncStatusCard
-        status={syncStatus}
-        onSync={handleSyncToBeat}
-        timelineData={timelineData}
-        perfCount={mediaFiles.filter(f => f.file_type === "performance_clip").length}
-        brollCount={mediaFiles.filter(f => f.file_type === "broll_clip").length}
-        projectId={id}
-        currentStyle={project?.style_preset || "raw_cut"}
-        isPro={isPro}
-        onStyleChange={handleStyleChange}
-      />
+      {/* Sync Status Card — only show for music_video projects, not long_to_shorts */}
+      {project?.type !== "long_to_shorts" && project?.type !== "loop_visualizer" && project?.type !== "ai_reframe" && (
+        <SyncStatusCard
+          status={syncStatus}
+          onSync={handleSyncToBeat}
+          timelineData={timelineData}
+          perfCount={mediaFiles.filter(f => f.file_type === "performance_clip").length}
+          brollCount={mediaFiles.filter(f => f.file_type === "broll_clip").length}
+          projectId={id}
+          currentStyle={project?.style_preset || "raw_cut"}
+          isPro={isPro}
+          onStyleChange={handleStyleChange}
+        />
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border overflow-x-auto">

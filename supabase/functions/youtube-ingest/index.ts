@@ -100,7 +100,19 @@ Deno.serve(async (req) => {
       }
     } catch (downloadErr) {
       console.error("Railway download request failed:", downloadErr);
-      // Still return success — the media_files record was created for polling
+      // Mark media file as failed so frontend stops polling
+      await supabase
+        .from("media_files")
+        .update({ status: "failed" })
+        .eq("id", mediaFile.id);
+      return new Response(JSON.stringify({
+        success: false,
+        error: "YouTube download service timed out. Try uploading the video file directly.",
+        media_file_id: mediaFile.id,
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Return success immediately so frontend can start polling
