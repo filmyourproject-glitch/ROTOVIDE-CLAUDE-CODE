@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "ROTOVIDE <notify@notify.rotovide.com>",
+        from: "ROTOVIDE <info@info.rotovide.com>",
         to: [email],
         subject,
         html,

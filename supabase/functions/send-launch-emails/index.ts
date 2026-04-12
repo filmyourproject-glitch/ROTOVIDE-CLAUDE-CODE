@@ -49,7 +49,7 @@ async function sendEmail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "ROTOVIDE <notify@notify.rotovide.com>",
+        from: "ROTOVIDE <info@info.rotovide.com>",
         to: [to],
         subject,
         html,

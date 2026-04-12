@@ -192,10 +192,9 @@ function Pain() {
           <div className="rv-c rv-q rv-r">
             <span className="qm">"</span>
             <blockquote>
-              The sheer volume of release and content demands on artists can be
-              overwhelmingly crippling.
+              Every time I scroll, it feels like everyone else is blowing up except me.
             </blockquote>
-            <cite>— Music Managers Forum, Digital Burnout Report</cite>
+            <cite>— Independent artist</cite>
           </div>
         </div>
 
