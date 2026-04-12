@@ -180,12 +180,12 @@ function Pain() {
 
         {/* Permission card */}
         <div className="rv-perm rv-r" style={{ marginTop: 36 }}>
-          <h3>POSTING ISN'T VANITY. IT'S THE JOB.</h3>
+          <h3>NOBODY BLOWS UP BY STAYING QUIET.</h3>
           <p>
-            You didn't make music for it to sit on a hard drive. Every song you wrote
-            deserves an audience — and in 2026, that means video. You're not being
-            thirsty. You're being smart. ROTOVIDE removes the last excuse between the
-            music you made and the people who need to hear it.
+            You know your music is good. Your friends know. Your producer knows. But
+            the algorithm doesn't care about talent — it cares about volume. The artists
+            passing you aren't better. They're just posting more. ROTOVIDE gives you the
+            output to match the talent you already have.
           </p>
         </div>
       </div>
