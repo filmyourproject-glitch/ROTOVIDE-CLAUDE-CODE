@@ -24,7 +24,12 @@ function WaitlistForm() {
     try {
       const { error: sbError } = await supabase
         .from("waitlist")
-        .insert({ email, source: "landing_page" });
+        .insert({
+          email,
+          source: "landing_page",
+          agreed_to_terms: false,
+          status: "pending",
+        });
       if (sbError) {
         if (sbError.code === "23505") {
           setSubmitted(true);
