@@ -66,53 +66,41 @@ function Hero() {
     <section className="rv-hero">
       <div className="rv-badge">
         <span className="dot" />
-        AI MUSIC VIDEO EDITOR FOR INDEPENDENT CHRISTIAN ARTISTS
+        AI MUSIC VIDEO EDITOR FOR INDEPENDENT ARTISTS
       </div>
       <h1>
-        THE GOSPEL NEEDS<br />
-        TO BE HEARD.<br />
-        <span className="a">VIDEO HELPS IT GET THERE.</span>
+        YOUR MUSIC DESERVES<br />
+        TO BE SEEN.<br />
+        <span className="a">VIDEO MAKES IT HAPPEN.</span>
       </h1>
       <p className="rv-hero-sub">
-        God gave you a song that could change someone's life — but without video,{" "}
+        You made a song that could change someone's life — but without video,{" "}
         <em>it never reaches them.</em> ROTOVIDE turns your footage and track into a
         beat-synced music video, social clips, and captions. Same day. No editing
         skills. Any genre.
       </p>
       <WaitlistForm />
       <div className="rv-trust">
-        <span>✓ 5 FREE EXPORTS ON SIGNUP</span>
+        <span>✓ 5 EXPORTS ON SIGNUP</span>
         <span>✓ 3-DAY TRIAL</span>
         <span>✓ NO CREDIT CARD</span>
         <span>✓ CANCEL ANYTIME</span>
       </div>
       <div className="rv-stats">
         <div className="rv-stat">
-          <div className="rv-stat-v">18.5%</div>
-          <div className="rv-stat-l">Christian streaming growth in 2025</div>
+          <div className="rv-stat-v">40%+</div>
+          <div className="rv-stat-l">of music streams come from independent artists</div>
         </div>
         <div className="rv-stat">
-          <div className="rv-stat-v">60%+</div>
-          <div className="rv-stat-l">Christian streaming growth over 5 years</div>
+          <div className="rv-stat-v">$500M+</div>
+          <div className="rv-stat-l">spent on music video production annually by indie artists</div>
         </div>
         <div className="rv-stat">
-          <div className="rv-stat-v">51%</div>
-          <div className="rv-stat-l">of Gen Z Christians prefer indie artists</div>
+          <div className="rv-stat-v">78%</div>
+          <div className="rv-stat-l">of fans say video drives them to stream a new artist</div>
         </div>
       </div>
     </section>
-  );
-}
-
-/* ═══════════════════════════════════════
-   SCRIPTURE BANNER
-   ═══════════════════════════════════════ */
-function Scripture() {
-  return (
-    <div className="rv-sc rv-r">
-      <p className="rv-sc-t">"How beautiful are the feet of those who bring good news."</p>
-      <p className="rv-sc-r">ROMANS 10:15</p>
-    </div>
   );
 }
 
@@ -132,7 +120,7 @@ function Pain() {
           You recorded something real. You've got footage sitting on your phone. But
           between editing, captions, reformatting, and posting —{" "}
           <em>nothing goes up.</em> The algorithm rewards whoever shows up every day.
-          The message can't reach anyone if it never gets posted.
+          Your music can't reach anyone if it never gets posted.
         </p>
 
         {/* Artist quotes */}
@@ -140,15 +128,14 @@ function Pain() {
           <div className="rv-c rv-q rv-r">
             <span className="qm">"</span>
             <blockquote>
-              I often sit on my creativity out of fear. I create within the comfort of
-              my room only to let it stay there on a hard drive or my phone.
+              I know my music's fire — I just need people to see it.
             </blockquote>
-            <cite>— Christian artist & producer, The Stone Table</cite>
+            <cite>— Independent artist</cite>
           </div>
           <div className="rv-c rv-q rv-r">
             <span className="qm">"</span>
-            <blockquote>I'm an independent artist. I'm wearing all my hats.</blockquote>
-            <cite>— Caroline Cobb, independent worship artist</cite>
+            <blockquote>I can't keep editing till 2 AM for 10 likes.</blockquote>
+            <cite>— Independent artist</cite>
           </div>
           <div className="rv-c rv-q rv-r">
             <span className="qm">"</span>
@@ -168,7 +155,7 @@ function Pain() {
             <div className="rv-ps-v">$1,000+</div>
             <div className="rv-ps-d">
               Per music video. To a videographer who takes weeks and still doesn't
-              capture the heart of the song.
+              capture the energy of your track.
             </div>
           </div>
           <div className="rv-c rv-ps rv-r">
@@ -186,19 +173,19 @@ function Pain() {
             <div className="rv-ps-v">SAME DAY</div>
             <div className="rv-ps-d">
               Music video, social clips, and AI captions. Upload in the morning. Post
-              before midnight. Reach someone by tomorrow.
+              before midnight. Blow up by tomorrow.
             </div>
           </div>
         </div>
 
         {/* Permission card */}
         <div className="rv-perm rv-r" style={{ marginTop: 36 }}>
-          <h3>POSTING ISN'T VANITY. IT'S STEWARDSHIP.</h3>
+          <h3>POSTING ISN'T VANITY. IT'S THE JOB.</h3>
           <p>
-            If God gave you the song, He wants it to find the person who needs it.
-            You're not promoting yourself — you're being faithful with what was placed
-            on your heart. ROTOVIDE just removes the last excuse between the music God
-            gave you and the people it was made for.
+            You didn't make music for it to sit on a hard drive. Every song you wrote
+            deserves an audience — and in 2026, that means video. You're not being
+            thirsty. You're being smart. ROTOVIDE removes the last excuse between the
+            music you made and the people who need to hear it.
           </p>
         </div>
       </div>
@@ -249,46 +236,59 @@ function WhoItsFor() {
   return (
     <section className="rv-sec" style={{ background: "var(--sf)" }}>
       <div className="rv-w">
-        <span className="rv-lbl rv-r">BUILT FOR EVERY CORNER OF CHRISTIAN MUSIC</span>
+        <span className="rv-lbl rv-r">BUILT FOR EVERY GENRE. EVERY GRIND. EVERY ARTIST.</span>
         <h2 className="rv-r">
-          IF THE MUSIC POINTS PEOPLE TO CHRIST,<br />
+          IF YOU MAKE MUSIC AND NEED VIDEO,<br />
           <span className="a">THIS IS FOR YOU.</span>
         </h2>
         <p className="rv-sub rv-r">
-          Worship leader, gospel singer, CCM songwriter, Christian rapper — the calling
-          is different, but the struggle is the same.
+          Rapper, singer, producer, band — the genre is different, but the struggle is
+          the same.
         </p>
-        <div className="g4 sg">
-          <div className="rv-c rv-au rv-r">
-            <div className="rv-au-e">🎸</div>
-            <h3>WORSHIP LEADERS</h3>
-            <p>
-              Turn original songs into shareable video that reaches the congregation
-              beyond Sunday morning.
-            </p>
-          </div>
+        <div className="g3 sg">
           <div className="rv-c rv-au rv-r">
             <div className="rv-au-e">🎤</div>
-            <h3>CCM ARTISTS</h3>
+            <h3>HIP-HOP & RAP</h3>
             <p>
-              Compete visually with the biggest names in Christian music — without their
-              production budget.
+              Hard-hitting visuals that match the energy of your bars. Beat-synced cuts
+              that hit on every snare.
             </p>
           </div>
           <div className="rv-c rv-au rv-r">
-            <div className="rv-au-e">🔥</div>
-            <h3>GOSPEL MUSICIANS</h3>
+            <div className="rv-au-e">🎸</div>
+            <h3>ROCK & ALTERNATIVE</h3>
             <p>
-              Let people feel the Spirit through visuals that match the power and
-              emotion of the music.
+              Cinematic performance footage cut with the intensity your sound demands.
+            </p>
+          </div>
+          <div className="rv-c rv-au rv-r">
+            <div className="rv-au-e">🎵</div>
+            <h3>R&B & SOUL</h3>
+            <p>
+              Smooth, mood-driven edits that let the vocal and the vibe breathe.
+            </p>
+          </div>
+          <div className="rv-c rv-au rv-r">
+            <div className="rv-au-e">🌎</div>
+            <h3>LATIN & AFROBEATS</h3>
+            <p>
+              Culture-forward visuals with rhythmic cutting that rides the groove.
+            </p>
+          </div>
+          <div className="rv-c rv-au rv-r">
+            <div className="rv-au-e">⛪</div>
+            <h3>GOSPEL & WORSHIP</h3>
+            <p>
+              Turn your worship moments into shareable video that reaches people beyond
+              Sunday morning.
             </p>
           </div>
           <div className="rv-c rv-au rv-r">
             <div className="rv-au-e">🎧</div>
-            <h3>CHRISTIAN HIP-HOP & R&B</h3>
+            <h3>POP & EDM</h3>
             <p>
-              Sharp, culture-forward visuals for music that breaks the mold of what
-              people expect.
+              High-energy cuts synced to drops, builds, and breakdowns. Content that
+              moves as fast as your sound.
             </p>
           </div>
         </div>
@@ -306,11 +306,11 @@ function FourTools() {
       <div className="rv-w">
         <span className="rv-lbl rv-r">NO EDITOR NEEDED.</span>
         <h2 className="rv-r">
-          <span className="a">SEVEN TOOLS.</span> ONE SUITE.
+          <span className="a">SEVEN TOOLS.</span> ONE SUBSCRIPTION.
         </h2>
         <p className="rv-sub rv-r">
           Whether you recorded on your phone in your living room or filmed a session at
-          the studio — upload your footage, upload the track, and ROTOVIDE handles
+          the studio — upload your footage, drop your track, and ROTOVIDE handles
           everything else.
         </p>
         <div className="g3 sg" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
@@ -459,8 +459,8 @@ function DeepFeatures() {
             <h3>FRAME-PERFECT LIP SYNC</h3>
             <p style={{ fontSize: 13, color: "var(--fg60)", lineHeight: 1.65 }}>
               Audio cross-correlation aligns the camera mic against the master track
-              down to the frame. Every syllable, every lyric, every worship line.
-              Exactly. Automatically.
+              down to the frame. Every syllable. Every lyric. Every line. Exactly.
+              Automatically.
             </p>
           </div>
           <div className="rv-c rv-r" style={{ borderTop: "3px solid var(--bdr-acc)" }}>
@@ -607,7 +607,7 @@ function ThatApp() {
         <p className="rv-sub rv-r">
           That app is great for people who want to spend hours editing. ROTOVIDE is for
           artists who want a finished video and an empty queue — so they can get back to
-          making music and ministry.
+          making music.
         </p>
         <div className="rv-s">
           <table className="rv-tbl">
@@ -681,13 +681,13 @@ function MusicRights() {
       <div className="rv-w">
         <span className="rv-lbl rv-r">MUSIC STAYS YOURS</span>
         <h2 className="rv-r">
-          THE LYRICS. THE WORSHIP.<br />
-          <span className="a">THE CALLING. PROTECTED.</span>
+          THE LYRICS. THE VISION.<br />
+          <span className="a">THE RIGHTS. PROTECTED.</span>
         </h2>
         <p className="rv-sub rv-r">
-          The song born from prayer, the lyrics that came from a season of breakthrough,
-          the melody meant to reach someone who needs the Gospel —{" "}
-          <em>they have rights to it the moment you upload to that other app.</em>
+          The song you spent months writing, the lyrics that came from a real place,
+          the melody that's yours and nobody else's —{" "}
+          <em>they claim rights to it the moment you upload to that other app.</em>
         </p>
         <p className="rv-r" style={{
           fontSize: 14,
@@ -804,7 +804,7 @@ function Pricing() {
           marginTop: 16,
           letterSpacing: .5,
         }}>
-          3-DAY FREE TRIAL · NO CREDIT CARD REQUIRED
+          TRY IT FREE · 3-DAY TRIAL · NO CREDIT CARD REQUIRED
         </p>
         <p style={{
           fontFamily: "'Space Mono', monospace",
@@ -827,7 +827,6 @@ function FinalCTA() {
   return (
     <section className="rv-fin" id="wl">
       <div className="rv-w">
-        <span className="rv-lbl rv-r">JOIN THE WAITLIST</span>
         <h2 className="rv-r">
           READY TO REACH<br />
           <span className="a">THE WORLD?</span>
@@ -836,7 +835,7 @@ function FinalCTA() {
         <div className="rv-trust rv-r" style={{ marginTop: 10 }}>
           <span>EARLY ACCESS</span>
           <span>·</span>
-          <span>5 FREE EXPORTS</span>
+          <span>5 EXPORTS TO START</span>
           <span>·</span>
           <span>3-DAY TRIAL</span>
           <span>·</span>
@@ -898,7 +897,6 @@ export default function LandingPage() {
     <div className="rv-page">
       <Navbar />
       <Hero />
-      <Scripture />
       <Pain />
       <VsComparison />
       <WhoItsFor />
